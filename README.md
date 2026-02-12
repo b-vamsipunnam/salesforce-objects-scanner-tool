@@ -146,4 +146,3 @@ Pull requests welcome! Especially:
 Questions or issues → open an issue or reach out.
 
 Happy scanning!
-```
