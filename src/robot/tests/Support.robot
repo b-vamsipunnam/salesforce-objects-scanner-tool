@@ -68,13 +68,29 @@ Check Prerequisites
     Should Be Equal As Integers         ${rc_int2}    0                     Org alias not found or not authenticated: ${ORG_ALIAS}\n${out2}
 
 
+Safe Parse Sf Json
+    [Documentation]    Strips warnings/BOM/junk and parses only the real JSON
+    [Arguments]    ${raw_output}
+
+    # Find first { or [
+    ${start}=    Evaluate    min([i for i in [r'''${raw_output}'''.find('{'), r'''${raw_output}'''.find('[')] if i != -1], default=-1)
+    IF    ${start} == -1
+        Log To Console    No JSON found in output:\n${raw_output}
+        Fail    Invalid sf CLI output – no JSON block
+    END
+
+    ${json_text}=    Evaluate    r'''${raw_output}'''[${start}:]
+    ${data}=         Evaluate    json.loads('''${json_text}''')    modules=json
+    RETURN           ${data}
+
 Run Sf Json
     [Documentation]                     Run an sf command and return parsed JSON dict.
     [Arguments]                         ${command}
     ${rc}    ${out}=                    Run And Return Rc And Output        ${SF_CLI} ${command} --target-org ${ORG_ALIAS} --json
     ${rc_int}=                          Convert To Integer                  ${rc}
     Should Be Equal As Integers         ${rc_int}     0                     Command failed: sf ${command}\n${out}
-    ${data}=                            Evaluate    json.loads(r'''${out}''')    modules=json
+    #${data}=                            Evaluate    json.loads(r'''${out}''')    modules=json
+    ${data}=                            Safe Parse Sf Json    ${out}
     RETURN                              ${data}
 
 
@@ -197,65 +213,79 @@ Get Max Timeout For Object
     RETURN                              ${MAX_QUERY_TIMEOUT_SECONDS}
 
 Get Record Count Safe
-    [Documentation]                     Runs SELECT COUNT() with polling.
-    ...                                 Returns: <count or ${None}>    <reason>    <duration_seconds>
-    [Arguments]                         ${object_name}                      ${tooling}=${FALSE}
-    # Early-skip known cases to save runtime
-    ${skip_count_unsupported}=          Run Keyword And Return Status       List Should Contain Value    ${COUNT_NOT_SUPPORTED_OBJECTS}    ${object_name}
+    [Documentation]    Execute COUNT() query with timeout protection and clean parsing
+    [Arguments]    ${object_name}    ${tooling}=${FALSE}
+
+    # 1. Early skips (your existing logic - keep it)
+    ${skip_count_unsupported}=    Run Keyword And Return Status
+    ...    List Should Contain Value    ${COUNT_NOT_SUPPORTED_OBJECTS}    ${object_name}
     IF    ${skip_count_unsupported}
-          RETURN                        ${None}    COUNT_NOT_SUPPORTED    0.0
+        RETURN    ${None}    COUNT_NOT_SUPPORTED    0.0
     END
-    ${skip_requires_where}=             Run Keyword And Return Status       List Should Contain Value    ${REQUIRES_WHERE_OBJECTS}    ${object_name}
+
+    ${skip_requires_where}=    Run Keyword And Return Status
+    ...    List Should Contain Value    ${REQUIRES_WHERE_OBJECTS}    ${object_name}
     IF    ${skip_requires_where}
-          RETURN                        ${None}    REQUIRES_WHERE_StatType    0.0
+        RETURN    ${None}    REQUIRES_WHERE_StatType    0.0
     END
-    ${query}=                           Set Variable                        SELECT COUNT() FROM ${object_name}
-    @{args}=                            Create List
-    ...    /c
-    ...    ${SF_CLI}
-    ...    data
-    ...    query
-    IF    ${tooling}
-          Append To List                ${args}                             --use-tooling-api
-    END
-    Append To List                      ${args}                             --query
-    Append To List                      ${args}                             ${query}
-    Append To List                      ${args}                             --target-org
-    Append To List                      ${args}                             ${ORG_ALIAS}
-    Append To List                      ${args}                             --json
-    ${poll}=                            Convert To Number                   ${POLL_INTERVAL_SECONDS}
-    ${max_timeout}=                     Get Max Timeout For Object          ${object_name}
-    ${start_epoch}=                     Get Current Date                    result_format=epoch
-    ${p}=                               Start Process                       ${SF_CMD}    @{args}    shell=${FALSE}    stdout=PIPE    stderr=PIPE
-    ${elapsed}=                         Set Variable    0.0
-    WHILE    ${elapsed} < ${max_timeout}
-             ${res}=                    Wait For Process                    ${p}    timeout=${poll}    on_timeout=continue
-        IF    '${res}' != '${None}'
-               ${end_epoch}=            Get Current Date                    result_format=epoch
-               ${dur}=                  Evaluate                            float(${end_epoch}) - float(${start_epoch})
-               ${rc}=                   Set Variable                        ${res.rc}
-               ${out}=                  Set Variable                        ${res.stdout}
-               ${err}=                  Set Variable                        ${res.stderr}
-               IF    ${rc} != 0
-                     ${text}=           Catenate                            SEPARATOR=\n    ${out}    ${err}
-                     ${reason}=         Get Skip Reason                     ${text}
-                     RETURN             ${None}                             ${reason}    ${dur}
-               END
-               # Parse only the first JSON object/array from stdout
-               ${payload}=              Evaluate                            r'''${out}'''.lstrip()    modules=None
-               ${end}=                  Evaluate                            __import__("json").JSONDecoder().raw_decode(r'''${payload}''')[1]    modules=None
-               ${first}=                Evaluate                            r'''${payload}'''[:${end}]    modules=None
-               ${data}=                 Evaluate                            json.loads(r'''${first}''')    modules=json
-               ${result}=               Collections.Get From Dictionary     ${data}      result
-               ${count}=                Collections.Get From Dictionary     ${result}    totalSize
-               RETURN                   ${count}    OK    ${dur}
+
+    # 2. Build command arguments
+    ${query}=    Set Variable    SELECT COUNT() FROM ${object_name}
+    @{args}=     Create List    ${SF_CLI}    data    query    --query    ${query}
+    Run Keyword If    ${tooling}    Append To List    ${args}    --use-tooling-api
+    Append To List    ${args}    --target-org    ${ORG_ALIAS}    --json
+
+    # 3. Start timing & process
+    ${start_epoch}=    Get Current Date    result_format=epoch
+    ${p}=              Start Process    @{args}    stdout=PIPE    stderr=PIPE    shell=${TRUE}
+
+    ${max_timeout}=    Get Max Timeout For Object    ${object_name}
+    ${poll}=           Convert To Number    ${POLL_INTERVAL_SECONDS}
+
+    # 4. Proper polling loop
+    WHILE    True
+        # Check if process has terminated
+        ${result}=    Wait For Process    ${p}    timeout=${poll}    on_timeout=continue
+
+        # If we got a result object → process is done
+        IF    '${result}' != '${None}'
+            BREAK
         END
-        ${elapsed}=                     Evaluate                            ${elapsed} + ${poll}
+
+        # Check elapsed time
+        ${now}=       Get Current Date    result_format=epoch
+        ${elapsed}=   Evaluate    ${now} - ${start_epoch}
+        IF    ${elapsed} >= ${max_timeout}
+            Terminate Process    ${p}    kill=${TRUE}
+            RETURN    ${None}    TIMEOUT    ${elapsed}
+        END
     END
-    Terminate Process                   ${p}        kill=${TRUE}
-    ${end_epoch}=                       Get Current Date                    result_format=epoch
-    ${dur}=                             Evaluate                            float(${end_epoch}) - float(${start_epoch})
-    RETURN                              ${None}     TIMEOUT    ${dur}
+
+    # 5. Process has finished → safely read result
+    ${end_epoch}=    Get Current Date    result_format=epoch
+    ${dur}=          Evaluate    float(${end_epoch}) - float(${start_epoch})
+
+    ${rc}=    Set Variable    ${result.rc}
+    ${out}=   Set Variable    ${result.stdout}
+    ${err}=   Set Variable    ${result.stderr}
+
+    IF    ${rc} != 0
+        ${text}=    Catenate    SEPARATOR=\n    ${out}    ${err}
+        ${reason}=  Get Skip Reason    ${text}
+        RETURN    ${None}    ${reason}    ${dur}
+    END
+    # 6. Parse output safely (use your safe parser if you added it)
+    ${start}=    Evaluate    min([i for i in [r'''${out}'''.find('{'), r'''${out}'''.find('[')] if i != -1], default=-1)
+    IF    ${start} == -1
+        RETURN    ${None}    INVALID_JSON_OUTPUT    ${dur}
+    END
+    ${json_text}=    Evaluate    r'''${out}'''[${start}:]
+    ${data}=         Evaluate    json.loads('''${json_text}''')    modules=json
+
+    ${count}=    Set Variable    ${data}[result][totalSize]
+
+    RETURN    ${count}    OK    ${dur}
+
 
 Get Tooling Object Names
     [Documentation]                     Returns filtered Tooling API sObject names using /tooling/sobjects.
@@ -363,7 +393,7 @@ Get All Object Record Counts
     &{durations_seconds}=               Create Dictionary
 
     FOR    ${index}    ${obj}    IN ENUMERATE    @{limited}    start=1
-           Log To Console               [${index}/${total}] Counting: ${obj}
+           Log To Console               [Standard]-[${index}/${total}] Counting: ${obj}
            ${count}    ${reason}     ${dur}=    Get Record Count Safe    ${obj}    tooling=${FALSE}
            # Store duration always (even for skipped)
            Set To Dictionary            ${durations_seconds}    ${obj}=${dur}
@@ -397,7 +427,7 @@ Get All Object Record Counts
           ${tooling_total}=               Get Length            ${tooling_list}
           Log To Console       Tooling objects to process : ${tooling_total}
           FOR    ${index}    ${tobj}    IN ENUMERATE    @{tooling_list}    start=1
-                 Log To Console              [${index}/${tooling_total}] Counting: ${tobj}
+                 Log To Console              [Tooling]-[${index}/${tooling_total}] Counting: ${tobj}
                  ${tcount}    ${treason}     ${tdur}=    Get Record Count Safe    ${tobj}    tooling=${TRUE}
                  # Store tooling duration too (prefix key so it won't collide)
                  Set To Dictionary           ${durations_seconds}    TOOLING::${tobj}=${tdur}
