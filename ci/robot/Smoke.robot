@@ -5,6 +5,7 @@ Documentation     Smoke tests for salesforce-objects-scanner
 Library           OperatingSystem
 Library           Collections
 Library           BuiltIn
+Library           String
 Resource          ../../src/robot/tests/Support.robot
 
 
@@ -32,6 +33,44 @@ Build Sf Command
 
     RETURN    ${cmd}
 
+
+Get Skip Reason
+    [Arguments]    ${error}
+
+    # Parse if JSON string
+    ${is_string}=    Run Keyword And Return Status    Should Be String    ${error}
+    IF    ${is_string}
+        ${error}=    Evaluate    __import__("json").loads($error)
+    END
+
+    ${name}=    Get From Dictionary    ${error}    name    default=${EMPTY}
+
+    IF    '${name}' == 'INVALID_TYPE_FOR_OPERATION'
+        RETURN    COUNT_NOT_SUPPORTED
+    END
+
+    RETURN    ${name}
+
+
+Filter Countable Objects
+    [Arguments]    @{objects}
+
+    @{filtered}=    Create List
+
+    FOR    ${obj}    IN    @{objects}
+
+        ${is_history}=    Run Keyword And Return Status    Should End With    ${obj}    History
+        ${is_feed}=       Run Keyword And Return Status    Should End With    ${obj}    Feed
+        ${is_encryption}=   Run Keyword And Return Status    Should Be Equal    ${obj}    DataEncryptionKey
+        ${is_apex}=       Run Keyword And Return Status    Should Be Equal    ${obj}    ApexClass
+
+        IF    not ${is_history} and not ${is_feed} and not ${is_encryption} and not ${is_apex}
+            Append To List    ${filtered}    ${obj}
+        END
+
+    END
+
+    RETURN    ${filtered}
 
 
 *** Test Cases ***
