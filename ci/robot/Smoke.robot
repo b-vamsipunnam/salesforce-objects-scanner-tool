@@ -5,11 +5,11 @@ Documentation     Smoke tests for salesforce-objects-scanner
 Library           OperatingSystem
 Library           Collections
 Library           BuiltIn
-Library           Process
 Resource          ../../src/robot/tests/Support.robot
 
 
 *** Keywords ***
+
 Is Windows
     ${os}=    Evaluate    __import__("os").name
     RETURN    ${os} == "nt"
@@ -20,28 +20,28 @@ Build Sf Command
     [Arguments]    @{sf_args}
 
     ${is_win}=    Is Windows
-
     IF    ${is_win}
-        @{base}=    Create List    cmd.exe    /c    ${SF_CLI}
+        @{cmd}=    Create List    cmd.exe    /c    ${SF_CLI}
     ELSE
-        @{base}=    Create List    ${SF_CLI}
+        @{cmd}=    Create List    ${SF_CLI}
     END
 
-    @{cmd}=    Combine Lists    ${base}    @{sf_args}
-    RETURN    @{cmd}
+    FOR    ${arg}    IN    @{sf_args}
+        Append To List    ${cmd}    ${arg}
+    END
+
+    RETURN    ${cmd}
+
 
 
 *** Test Cases ***
 
 Smoke - Resource Loads
-    [Documentation]    Ensures Support.robot imports correctly
     Should Not Be Empty    ${SF_CLI}
     Should Be Equal        ${SF_CLI}    sf
-    Log    Support.robot loaded successfully
 
 
 Smoke - Build Sf Command Cross Platform
-    [Documentation]    Validates command construction logic
     @{cmd}=    Build Sf Command    --version
 
     ${is_win}=    Is Windows
@@ -55,9 +55,8 @@ Smoke - Build Sf Command Cross Platform
 
 
 Smoke - Safe Parse Sf Json With Warning Prefix
-    [Documentation]    Ensures CLI warning lines are ignored during parsing
     ${fake_output}=    Catenate    SEPARATOR=\n
-    ...    Warning: @salesforce/cli update available.
+    ...    Warning: update available
     ...    {
     ...      "status": 0,
     ...      "result": ["Account", "Contact"]
@@ -71,7 +70,7 @@ Smoke - Safe Parse Sf Json With Warning Prefix
 
 
 Smoke - Get Skip Reason - JSON Error
-    ${error_json}=    {"name": "INVALID_TYPE_FOR_OPERATION", "message": "Count not supported"}
+    ${error_json}=    Set Variable    {"name": "INVALID_TYPE_FOR_OPERATION", "message": "Count not supported"}
     ${reason}=        Get Skip Reason    ${error_json}
     Should Be Equal   ${reason}    COUNT_NOT_SUPPORTED
 
@@ -95,10 +94,6 @@ Smoke - Filter Countable Objects
 
 
 Smoke - JSON Structure Generation
-    @{mock_objects}=    Create List    Account    Contact
-    @{filtered}=        Filter Countable Objects    @{mock_objects}
-    Should Not Be Empty    ${filtered}
-
     &{mock_results}=      Create Dictionary    Account=100    Contact=50
     &{mock_durations}=    Create Dictionary    Account=1.2    Contact=0.8
 
