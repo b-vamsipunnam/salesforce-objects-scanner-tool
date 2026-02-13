@@ -37,13 +37,23 @@ Build Sf Command
 Get Skip Reason
     [Arguments]    ${error}
 
-    # Parse if JSON string
-    ${is_string}=    Run Keyword And Return Status    Should Be String    ${error}
-    IF    ${is_string}
-        ${error}=    Evaluate    __import__("json").loads($error)
-    END
+    # Case 1: Already a dict
+    ${is_dict}=    Run Keyword And Return Status    Dictionary Should Contain Key    ${error}    name
+    IF    ${is_dict}
+        ${name}=    Get From Dictionary    ${error}    name
+    ELSE
+        # Case 2: Try parsing JSON safely
+        ${parsed}=    Run Keyword And Return Status
+        ...    Evaluate    __import__("json").loads($error)
 
-    ${name}=    Get From Dictionary    ${error}    name    default=${EMPTY}
+        IF    ${parsed}
+            ${error}=    Evaluate    __import__("json").loads($error)
+            ${name}=     Get From Dictionary    ${error}    name    default=${EMPTY}
+        ELSE
+            # Case 3: Plain string error name
+            ${name}=    Set Variable    ${error}
+        END
+    END
 
     IF    '${name}' == 'INVALID_TYPE_FOR_OPERATION'
         RETURN    COUNT_NOT_SUPPORTED
