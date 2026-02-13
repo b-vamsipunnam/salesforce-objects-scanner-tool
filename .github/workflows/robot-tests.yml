@@ -26,7 +26,7 @@ jobs:
     - name: Run smoke tests
       run: |
         mkdir -p results
-        robot -d results src/robot/tests/smoke_tests.robot
+        robot -d results ci/robot/Smoke.robot
 
     - name: Upload test results
       if: always()
@@ -34,3 +34,4 @@ jobs:
       with:
         name: smoke-test-results
         path: results/
+        if-no-files-found: ignore
