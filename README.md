@@ -1,5 +1,5 @@
 
-# sf-org-object-scanner
+# Salesforce Objects Scanner
 
 A lightweight, robust Salesforce CLI utility to scan all queryable sObjects in an org and retrieve record counts per object.
 
@@ -50,10 +50,10 @@ No extra pip packages needed beyond Robot Framework itself.
 
 ## Usage
 
-Run the main suite:
+Run the Test:
 
 ```bash
-robot path/to/your_suite.robot
+robot --test Object_Scanner -d reports src/robot/tests/Test.robot
 ```
 
 Or run directly if `Get All Object Record Counts` is the main keyword:
