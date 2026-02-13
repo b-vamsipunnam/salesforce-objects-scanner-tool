@@ -19,8 +19,8 @@ ${ORG_ALIAS}                        DeveloperOrg
 ${SF_CMD}                           cmd.exe
 ${SF_CLI}                           sf
 
-${OUTPUT_DIR}                       ${CURDIR}${/}results
-${OUTPUT_FILENAME}                  salesforce_record_counts.json
+${OUTPUT_DIR}                       ${EXECDIR}${/}output
+${OUTPUT_FILENAME}                  SF_Objects.xlsx
 
 # Runtime controls
 ${DELAY_SECONDS}                    0.1
@@ -440,15 +440,63 @@ Get All Object Record Counts
                  END
           END
     END
-    &{results}=          Create Dictionary
-    ...    data_objects=${data_results}
-    ...    tooling_objects=${tooling_results}
-    ...    skipped_objects=${skipped_reasons}
-    ...    durations_seconds=${durations_seconds}
-
-    ${json_string}=      Evaluate            json.dumps($results, indent=2)    modules=json
-    Create File          ${output_file}      ${json_string}
-
+    Save Results To Excel
+    ...    ${data_results}
+    ...    ${tooling_results}
+    ...    ${skipped_reasons}
+    ...    ${durations_seconds}
     Log To Console                           \nDone! Results saved to: ${output_file}
     Log Skipped Summary                      ${skipped_reasons}
     Log Summary All Objects                  ${data_results}
+
+
+Save Results To Excel
+    [Arguments]    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${durations_seconds}
+
+    ${output_file}=    Set Variable    ${OUTPUT_DIR}${/}${OUTPUT_FILENAME}
+
+    ${data_file}=       Set Variable    ${OUTPUT_DIR}${/}data.json
+    ${tooling_file}=    Set Variable    ${OUTPUT_DIR}${/}tooling.json
+    ${skipped_file}=    Set Variable    ${OUTPUT_DIR}${/}skipped.json
+    ${durations_file}=  Set Variable    ${OUTPUT_DIR}${/}durations.json
+
+    ${data_json}=       Evaluate    json.dumps($data_results)    modules=json
+    ${tooling_json}=    Evaluate    json.dumps($tooling_results)    modules=json
+    ${skipped_json}=    Evaluate    json.dumps($skipped_reasons)    modules=json
+    ${durations_json}=  Evaluate    json.dumps($durations_seconds)    modules=json
+
+    Create File    ${data_file}       ${data_json}
+    Create File    ${tooling_file}    ${tooling_json}
+    Create File    ${skipped_file}    ${skipped_json}
+    Create File    ${durations_file}  ${durations_json}
+
+    Run Process
+    ...    python
+    ...    src/utils/excel_writer.py
+    ...    ${data_file}
+    ...    ${tooling_file}
+    ...    ${skipped_file}
+    ...    ${durations_file}
+    ...    ${output_file}
+
+    Log To Console    Excel report generated: ${output_file}
+
+Save Results To Excel12345
+    [Arguments]    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${durations_seconds}
+
+    ${output_file}=    Set Variable    ${OUTPUT_DIR}${/}${OUTPUT_FILENAME}
+
+    ${data_json}=       Evaluate    json.dumps($data_results)    modules=json
+    ${tooling_json}=    Evaluate    json.dumps($tooling_results)    modules=json
+    ${skipped_json}=    Evaluate    json.dumps($skipped_reasons)    modules=json
+    ${durations_json}=  Evaluate    json.dumps($durations_seconds)    modules=json
+
+    Run Process
+    ...    python
+    ...    src/robot/library/ExcelWriter.py
+    ...    ${data_json}
+    ...    ${tooling_json}
+    ...    ${skipped_json}
+    ...    ${durations_json}
+    ...    ${output_file}
+    Log To Console    Excel report generated: ${output_file}
