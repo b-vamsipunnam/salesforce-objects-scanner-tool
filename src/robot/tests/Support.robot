@@ -1,130 +1,160 @@
 *** Settings ***
-Documentation                       Retrieve record counts for Salesforce objects using Salesforce CLI (sf).
-...                                 Filters noisy objects, limits runtime, uses timeout protection (polling).
-...                                 Enhancements:
-...                                 - Parses sf JSON error payload for better skip reasons
-...                                 - Logs per-object duration (seconds)
-...                                 - Adds early-skip lists for known "count not supported" objects
-Library                             OperatingSystem
-Library                             Collections
-Library                             BuiltIn
-Library                             json
-Library                             Process
-Library                             DateTime
+Documentation                                   Retrieve record counts for Salesforce objects using Salesforce CLI (sf).
+...                                             Filters noisy objects, limits runtime, uses timeout protection (polling).
+...                                             Enhancements:
+...                                             - Parses sf JSON error payload for better skip reasons
+...                                             - Logs per-object duration (seconds)
+...                                             - Adds early-skip lists for known "count not supported" objects
+Library                                         OperatingSystem
+Library                                         Collections
+Library                                         BuiltIn
+Library                                         json
+Library                                         Process
+Library                                         DateTime
+Library                                         String
 
 *** Variables ***
-${ORG_ALIAS}                        DeveloperOrg
-
+${ORG_ALIAS}                                    DeveloperOrg
 # Windows execution
-${SF_CMD}                           cmd.exe
-${SF_CLI}                           sf
-
-${OUTPUT_DIR}                       ${EXECDIR}${/}output
-${OUTPUT_FILENAME}                  SF_Objects.xlsx
-
+${SF_CMD}                                       cmd.exe
+${SF_CLI}                                       sf
+${PYTHON}                                       python
+${OUTPUT_DIR}                                   ${EXECDIR}${/}output
+${OUTPUT_FILENAME}                              SF_Objects
 # Runtime controls
-${DELAY_SECONDS}                    0.1
-
+${DELAY_SECONDS}                                0.1
 # Polling timeout controls (dynamic wait with max cap)
-${MAX_QUERY_TIMEOUT_SECONDS}        120
-${POLL_INTERVAL_SECONDS}            1.0
-${CONNECTEDAPP_TIMEOUT}             180
-
+${MAX_QUERY_TIMEOUT_SECONDS}                    120
+${POLL_INTERVAL_SECONDS}                        1.0
+${CONNECTEDAPP_TIMEOUT}                         180
 # Treat these as known slow / special timeout
-@{SLOW_OBJECTS}                     ConnectedApplication
-
+@{SLOW_OBJECTS}                                 ConnectedApplication
 # Tooling controls
-${INCLUDE_TOOLING}                  ${TRUE}
-${DISCOVER_TOOLING_OBJECTS}         ${TRUE}
-${API_VERSION}                      65.0
+${INCLUDE_TOOLING}                              ${TRUE}
+${DISCOVER_TOOLING_OBJECTS}                     ${TRUE}
 
-@{TOOLING_OBJECTS}                  ApexClass    ApexTrigger    CustomField    ValidationRule
-...                                 ApexPage      ApexComponent  CustomObject   Profile
-...                                 PermissionSet  EntityDefinition
-
+@{TOOLING_OBJECTS}                              ApexClass    ApexTrigger    CustomField    ValidationRule
+...                                             ApexPage      ApexComponent  CustomObject   Profile
+...                                             PermissionSet  EntityDefinition
 # Known "not countable" / restricted objects (pre-filter)
-@{NON_COUNTABLE_OBJECTS}            AggregateResult    ApiEventStream    AsyncOperationStatus
-...                                 AttachedContentDocument    CombinedAttachment
-...                                 BulkApiResultEventStore
-...                                 ApexTypeImplementor    AppTabMember    ColorDefinition
-...                                 ContentDocumentLink
-...                                 ContentFolderItem    ContentFolderMember
-
+@{NON_COUNTABLE_OBJECTS}                        AggregateResult    ApiEventStream    AsyncOperationStatus
+...                                             AttachedContentDocument    CombinedAttachment
+...                                             BulkApiResultEventStore
+...                                             ApexTypeImplementor    AppTabMember    ColorDefinition
+...                                             ContentDocumentLink
+...                                             ContentFolderItem    ContentFolderMember
 # Known objects where COUNT() is not supported (avoid wasting time)
-@{COUNT_NOT_SUPPORTED_OBJECTS}      DataEncryptionKey
-
+@{COUNT_NOT_SUPPORTED_OBJECTS}                  DataEncryptionKey
 # Known objects that require additional WHERE clause (avoid wasting time; classify clearly)
-@{REQUIRES_WHERE_OBJECTS}           DataStatistics
+@{REQUIRES_WHERE_OBJECTS}                       DataStatistics
 
 *** Keywords ***
 Check Prerequisites
-    [Documentation]                     Ensure sf is installed and org alias is authenticated.
-    Create Directory                    ${OUTPUT_DIR}
-    ${rc}    ${out}=                    Run And Return Rc And Output        ${SF_CLI} --version
-    ${rc_int}=                          Convert To Integer                  ${rc}
-    Should Be Equal As Integers         ${rc_int}     0                     Salesforce CLI (sf) not found or not in PATH.\n${out}
-    ${rc2}    ${out2}=                  Run And Return Rc And Output        ${SF_CLI} org display --target-org ${ORG_ALIAS} --json
-    ${rc_int2}=                         Convert To Integer                  ${rc2}
-    Should Be Equal As Integers         ${rc_int2}    0                     Org alias not found or not authenticated: ${ORG_ALIAS}\n${out2}
-
+    [Documentation]                             Ensure Salesforce CLI is installed and org alias is authenticated.
+    # Ensure output directory exists
+    Create Directory                            ${OUTPUT_DIR}
+    # --- Resolve SF CLI executable (Windows-safe) ---
+    ${where_res}=                               Run Process                      where    sf    stdout=PIPE    stderr=PIPE
+    Should Be Equal As Integers                 ${where_res.rc}    0             msg=Salesforce CLI (sf) not found in PATH.
+    @{lines}=                                   Split To Lines                   ${where_res.stdout}
+    ${sf_path}=                                 Set Variable                     ${EMPTY}
+    FOR    ${line}    IN    @{lines}
+           ${is_cmd}=                           Run Keyword And Return Status    Should End With        ${line}    .cmd
+           IF    ${is_cmd}
+                 ${sf_path}=                    Set Variable                     ${line}
+                 Exit For Loop
+           END
+    END
+    Should Not Be Empty                         ${sf_path}                       msg=Could not resolve sf.cmd executable.
+    Set Suite Variable                          ${SF_CLI}                        ${sf_path}
+    Log To Console                              Using SF CLI: ${SF_CLI}
+    # --- Validate CLI works ---
+    ${ver_res}=                                 Run Process                      ${SF_CLI}    --version    stdout=PIPE    stderr=PIPE
+    Should Be Equal As Integers                 ${ver_res.rc}    0               msg=Salesforce CLI failed to execute.\n${ver_res.stderr}
+    # --- Validate org authentication ---
+    ${org_res}=                                 Run Process
+    ...    ${SF_CLI}
+    ...    org
+    ...    display
+    ...    --target-org
+    ...    ${ORG_ALIAS}
+    ...    --json
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    Should Be Equal As Integers                 ${org_res.rc}       0           msg=Org alias not found or not authenticated: ${ORG_ALIAS}\n${org_res.stderr}
+    ${json_obj}=                                Evaluate                        json.loads($org_res.stdout)    modules=json
+    ${result_dict}=                             Get From Dictionary             ${json_obj}         result
+    ${api_version}=                             Get From Dictionary             ${result_dict}      apiVersion
+    Set Suite Variable                          ${API_VERSION}                  ${api_version}
+    Log To Console                              Connected to ${ORG_ALIAS} (API v${API_VERSION})
 
 Safe Parse Sf Json
-    [Documentation]    Strips warnings/BOM/junk and parses only the real JSON
-    [Arguments]    ${raw_output}
-
-    # Find first { or [
-    ${start}=    Evaluate    min([i for i in [r'''${raw_output}'''.find('{'), r'''${raw_output}'''.find('[')] if i != -1], default=-1)
-    IF    ${start} == -1
-        Log To Console    No JSON found in output:\n${raw_output}
-        Fail    Invalid sf CLI output – no JSON block
-    END
-
-    ${json_text}=    Evaluate    r'''${raw_output}'''[${start}:]
-    ${data}=         Evaluate    json.loads('''${json_text}''')    modules=json
-    RETURN           ${data}
+    [Arguments]                                 ${raw}
+    Should Not Be Empty                         ${raw}                          No output returned from sf.
+    # Find first JSON object start
+    ${index}=                                   Evaluate                        $raw.find('{')
+    Run Keyword If    ${index} == -1            Fail                            No JSON object found in output:\n${raw}
+    ${clean}=                                   Evaluate                        $raw[$index:]
+    ${data}=                                    Evaluate                        json.loads($clean)    modules=json
+    RETURN    ${data}
 
 Run Sf Json
-    [Documentation]                     Run an sf command and return parsed JSON dict.
-    [Arguments]                         ${command}
-    ${rc}    ${out}=                    Run And Return Rc And Output        ${SF_CLI} ${command} --target-org ${ORG_ALIAS} --json
-    ${rc_int}=                          Convert To Integer                  ${rc}
-    Should Be Equal As Integers         ${rc_int}     0                     Command failed: sf ${command}\n${out}
-    #${data}=                            Evaluate    json.loads(r'''${out}''')    modules=json
-    ${data}=                            Safe Parse Sf Json    ${out}
-    RETURN                              ${data}
+    [Documentation]                             Run an sf command and return parsed JSON dict.
+    [Arguments]                                 @{command_parts}
+    ${res}=                                     Run Process
+    ...    ${SF_CLI}
+    ...    @{command_parts}
+    ...    --target-org
+    ...    ${ORG_ALIAS}
+    ...    --json
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    Should Be Equal As Integers                 ${res.rc}       0               msg=Command failed: sf @{command_parts}\n${res.stderr}
+    ${data}=                                    Safe Parse Sf Json              ${res.stdout}
+    RETURN                                      ${data}
+
+Run Sf Command
+    [Documentation]                             Execute Salesforce CLI command and return rc, stdout, stderr.
+    [Arguments]                                 @{args}
+    Log                                         Running: ${SF_CLI} @{args}
+    ${result}=                                  Run Process
+    ...    ${SF_CLI}
+    ...    @{args}
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    ${rc}=                                      Set Variable                    ${result.rc}
+    ${out}=                                     Set Variable                    ${result.stdout}
+    ${err}=                                     Set Variable                    ${result.stderr}
+    RETURN    ${rc}    ${out}    ${err}
 
 
 Run Sf Api Request Rest Json
-    [Documentation]                     Call Salesforce REST endpoint via "sf api request rest" and return parsed JSON dict.
-    [Arguments]                         ${relative_url}
-    ${rc}    ${out}=                    Run And Return Rc And Output        ${SF_CLI} api request rest ${relative_url} --target-org ${ORG_ALIAS}
-    ${rc_int}=                          Convert To Integer                  ${rc}
-    IF    ${rc_int} != 0
-        Log To Console                  sf api request rest failed (rc=${rc_int}): ${out}
-        RETURN                          ${None}
+    [Documentation]                             Call Salesforce REST endpoint via sf CLI and return parsed JSON dict.
+    [Arguments]                                 ${relative_url}
+    ${rc}    ${out}    ${err}=                  Run Sf Command
+    ...    api
+    ...    request
+    ...    rest
+    ...    ${relative_url}
+    ...    --target-org
+    ...    ${ORG_ALIAS}
+    Should Be Equal As Integers                 ${rc}    0                      SF API call failed:\n${out}\n${err}
+    ${status}    ${data}=                       Run Keyword And Ignore Error    Safe Parse Sf Json          ${out}
+    IF    '${status}' != 'PASS'
+           Fail    Could not parse JSON from sf response:\n${out}
     END
-    # sf may print warnings before JSON. Extract JSON starting at first '{' or '['.
-    ${start}=                           Evaluate    min([i for i in [r'''${out}'''.find('{'), r'''${out}'''.find('[')] if i != -1], default=-1)
-    IF    ${start} == -1
-        Log To Console                  Could not find JSON payload in sf output:\n${out}
-        RETURN                          ${None}
-    END
-    ${json_text}=                       Evaluate    r'''${out}'''[${start}:]    modules=None
-    ${data}=                            Evaluate    json.loads(r'''${json_text}''')    modules=json
-    RETURN                              ${data}
-
+    RETURN                                      ${data}
 
 Get Object Names From List
-    [Documentation]                     sf sobject list --json => {"result": ["Account", ...]}.
-    [Arguments]                         ${list_json}
-    @{names}=                           Collections.Get From Dictionary     ${list_json}    result
-    RETURN                              ${names}
-
+    [Documentation]                             sf sobject list --json => {"result": ["Account", ...]}.
+    [Arguments]                                 ${list_json}
+    @{names}=                                   Collections.Get From Dictionary             ${list_json}    result
+    RETURN                                      ${names}
 
 Filter Countable Objects
-    [Documentation]                     Remove noisy/high-volume platform objects + known restricted objects.
-    [Arguments]                         @{names}
-    @{suffixes}=                        Create List
+    [Documentation]                             Remove noisy/high-volume platform objects + known restricted objects.
+    [Arguments]                                 @{names}
+    @{suffixes}=                                Create List
     ...    History
     ...    Feed
     ...    Share
@@ -138,171 +168,157 @@ Filter Countable Objects
     ...    __kav
     ...    __x
 
-    @{keep}=                            Create List
+    @{keep}=                                    Create List
     FOR    ${n}    IN    @{names}
-           ${blocked}=                  Run Keyword And Return Status       List Should Contain Value    ${NON_COUNTABLE_OBJECTS}    ${n}
+           ${blocked}=                          Run Keyword And Return Status               List Should Contain Value    ${NON_COUNTABLE_OBJECTS}    ${n}
            IF    ${blocked}
                  CONTINUE
            END
-           ${skip}=                     Set Variable                        ${FALSE}
+           ${skip}=                             Set Variable          ${FALSE}
            FOR    ${s}    IN    @{suffixes}
-                  ${ends}=              Run Keyword And Return Status       Should End With    ${n}    ${s}
+                  ${ends}=                      Run Keyword And Return Status               Should End With    ${n}     ${s}
                   IF    ${ends}
-                        ${skip}=        Set Variable                        ${TRUE}
+                        ${skip}=                Set Variable                                ${TRUE}
                         Exit For Loop
                   END
            END
            IF    ${skip}
                  CONTINUE
            END
-           Append To List               ${keep}                             ${n}
+           Append To List                       ${keep}                 ${n}
     END
-    RETURN                              ${keep}
+    RETURN                                      ${keep}
 
 Get Skip Reason
-    [Documentation]                     Classify skip reason from sf output.
-    ...                                 Prefers sf JSON "name"/"message" if present.
-    [Arguments]                         ${text}
-    # Try to parse a JSON object from text (sf prints JSON to stdout/stderr)
-    ${start}=                           Evaluate    min([i for i in [r'''${text}'''.find('{'), r'''${text}'''.find('[')] if i != -1], default=-1)
-    IF    ${start} != -1
-          ${json_text}=                 Evaluate    r'''${text}'''[${start}:]    modules=None
-          ${ok}=                        Run Keyword And Return Status       Evaluate    json.loads(r'''${json_text}''')    modules=json
-        IF    ${ok}
-              ${data}=                  Evaluate    json.loads(r'''${json_text}''')    modules=json
-              ${has_name}=              Run Keyword And Return Status       Dictionary Should Contain Key    ${data}    name
-            IF    ${has_name}
-                  ${ename}=             Collections.Get From Dictionary     ${data}    name
-                  ${has_msg}=           Run Keyword And Return Status       Dictionary Should Contain Key    ${data}    message
-                  ${emsg}=              Set Variable                        ${EMPTY}
-                  IF    ${has_msg}
-                        ${emsg}=        Collections.Get From Dictionary     ${data}    message
-                  END
-                  # Normalize the patterns you've observed
-                  ${has_count_not_supported}=    Run Keyword And Return Status    Should Contain    ${emsg}    Count operation not supported
-                  IF    ${has_count_not_supported}
-                        RETURN          COUNT_NOT_SUPPORTED
-                  END
-                  ${has_stat_required}=    Run Keyword And Return Status    Should Contain    ${emsg}    Where clauses should contain StatType
-                  IF    ${has_stat_required}
-                        RETURN          REQUIRES_WHERE_StatType
-                  END
-                  RETURN                ${ename}
-            END
+    [Documentation]                             Classify skip reason from sf output. Prefers sf JSON "name"/"message" if present.
+    [Arguments]                                 ${text}
+    # Try structured JSON parsing first
+    ${status}    ${data}=                       Run Keyword And Ignore Error                Safe Parse Sf Json                  ${text}
+    IF    '${status}' == 'PASS'
+           ${has_name}=                         Run Keyword And Return Status               Dictionary Should Contain Key       ${data}     name
+        IF    ${has_name}
+              ${ename}=                         Get From Dictionary                         ${data}    name
+              ${has_msg}=                       Run Keyword And Return Status               Dictionary Should Contain Key       ${data}     message
+              ${emsg}=                          Set Variable                                ${EMPTY}
+              IF    ${has_msg}
+                    ${emsg}=                    Get From Dictionary                         ${data}    message
+              END
+              ${has_count_not_supported}=       Run Keyword And Return Status               Should Contain                      ${emsg}     Count operation not supported
+              IF    ${has_count_not_supported}
+                    RETURN    COUNT_NOT_SUPPORTED
+              END
+              ${has_stat_required}=             Run Keyword And Return Status               Should Contain                      ${emsg}     Where clauses should contain StatType
+              IF    ${has_stat_required}
+                    RETURN    REQUIRES_WHERE_StatType
+              END
+              RETURN    ${ename}
         END
     END
-    # Fallback: substring checks (keep your original logic)
-    ${r1}=                              Run Keyword And Return Status       Should Contain    ${text}    INVALID_TYPE_FOR_OPERATION
-    IF    ${r1}                         RETURN    INVALID_TYPE_FOR_OPERATION
-    ${r2}=                              Run Keyword And Return Status       Should Contain    ${text}    BIG_OBJECT_UNSUPPORTED_OPERATION
-    IF    ${r2}                         RETURN    BIG_OBJECT_UNSUPPORTED_OPERATION
-    ${r3}=                              Run Keyword And Return Status       Should Contain    ${text}    MALFORMED_QUERY
-    IF    ${r3}                         RETURN    MALFORMED_QUERY
-    ${r4}=                              Run Keyword And Return Status       Should Contain    ${text}    INVALID_TYPE
-    IF    ${r4}                         RETURN    INVALID_TYPE
-    RETURN                              OTHER_ERROR
-
+    # Fallback: substring checks
+    ${r1}=    Run Keyword And Return Status     Should Contain                              ${text}    INVALID_TYPE_FOR_OPERATION
+    IF    ${r1}    RETURN                       INVALID_TYPE_FOR_OPERATION
+    ${r2}=    Run Keyword And Return Status     Should Contain                              ${text}    BIG_OBJECT_UNSUPPORTED_OPERATION
+    IF    ${r2}    RETURN                       BIG_OBJECT_UNSUPPORTED_OPERATION
+    ${r3}=    Run Keyword And Return Status     Should Contain                              ${text}    MALFORMED_QUERY
+    IF    ${r3}    RETURN                       MALFORMED_QUERY
+    ${r4}=    Run Keyword And Return Status     Should Contain                              ${text}    INVALID_TYPE
+    IF    ${r4}    RETURN                       INVALID_TYPE
+    RETURN                                      OTHER_ERROR
 
 Get Max Timeout For Object
-    [Documentation]                     Special-case timeout for known slow objects.
-    [Arguments]                         ${object_name}
-    ${is_slow}=                         Run Keyword And Return Status       List Should Contain Value    ${SLOW_OBJECTS}    ${object_name}
+    [Documentation]                             Special-case timeout for known slow objects.
+    [Arguments]                                 ${object_name}
+    ${is_slow}=                                 Run Keyword And Return Status               List Should Contain Value    ${SLOW_OBJECTS}    ${object_name}
     IF    ${is_slow}
-          RETURN                        ${CONNECTEDAPP_TIMEOUT}
+          RETURN                                ${CONNECTEDAPP_TIMEOUT}
     END
-    RETURN                              ${MAX_QUERY_TIMEOUT_SECONDS}
+    RETURN                                      ${MAX_QUERY_TIMEOUT_SECONDS}
 
 Get Record Count Safe
-    [Documentation]    Execute COUNT() query with timeout protection and clean parsing
-    [Arguments]    ${object_name}    ${tooling}=${FALSE}
-
-    # 1. Early skips (your existing logic - keep it)
-    ${skip_count_unsupported}=    Run Keyword And Return Status
-    ...    List Should Contain Value    ${COUNT_NOT_SUPPORTED_OBJECTS}    ${object_name}
+    [Documentation]                             Execute COUNT() query with timeout protection and clean parsing
+    [Arguments]                                 ${object_name}                              ${tooling}=${FALSE}
+    # 1. Early skips
+    ${skip_count_unsupported}=                  Run Keyword And Return Status               List Should Contain Value    ${COUNT_NOT_SUPPORTED_OBJECTS}    ${object_name}
     IF    ${skip_count_unsupported}
-        RETURN    ${None}    COUNT_NOT_SUPPORTED    0.0
+          RETURN    ${None}                     COUNT_NOT_SUPPORTED    0.0
     END
-
-    ${skip_requires_where}=    Run Keyword And Return Status
-    ...    List Should Contain Value    ${REQUIRES_WHERE_OBJECTS}    ${object_name}
+    ${skip_requires_where}=                     Run Keyword And Return Status               List Should Contain Value    ${REQUIRES_WHERE_OBJECTS}    ${object_name}
     IF    ${skip_requires_where}
-        RETURN    ${None}    REQUIRES_WHERE_StatType    0.0
+          RETURN    ${None}                     REQUIRES_WHERE_StatType    0.0
     END
-
-    # 2. Build command arguments
-    ${query}=    Set Variable    SELECT COUNT() FROM ${object_name}
-    @{args}=     Create List    ${SF_CLI}    data    query    --query    ${query}
-    Run Keyword If    ${tooling}    Append To List    ${args}    --use-tooling-api
-    Append To List    ${args}    --target-org    ${ORG_ALIAS}    --json
-
-    # 3. Start timing & process
-    ${start_epoch}=    Get Current Date    result_format=epoch
-    ${p}=              Start Process    @{args}    stdout=PIPE    stderr=PIPE    shell=${TRUE}
-
-    ${max_timeout}=    Get Max Timeout For Object    ${object_name}
-    ${poll}=           Convert To Number    ${POLL_INTERVAL_SECONDS}
-
-    # 4. Proper polling loop
+    # 2. Build query
+    ${query}=                                   Set Variable                                SELECT COUNT() FROM ${object_name}
+    @{args}=                                    Create List
+    ...    data
+    ...    query
+    ...    --query
+    ...    ${query}
+    Run Keyword If    ${tooling}                Append To List                              ${args}    --use-tooling-api
+    Append To List    ${args}
+    ...    --target-org
+    ...    ${ORG_ALIAS}
+    ...    --json
+    # 3. Start timing & process (NO cmd.exe)
+    ${start_epoch}=                             Get Current Date                            result_format=epoch
+    ${p}=                                       Start Process
+    ...    ${SF_CLI}
+    ...    @{args}
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    ${max_timeout}=                             Get Max Timeout For Object                  ${object_name}
+    ${poll}=                                    Convert To Number                           ${POLL_INTERVAL_SECONDS}
+    # 4. Poll loop
     WHILE    True
-        # Check if process has terminated
-        ${result}=    Wait For Process    ${p}    timeout=${poll}    on_timeout=continue
-
-        # If we got a result object → process is done
+        ${result}=                              Wait For Process                            ${p}    timeout=${poll}     on_timeout=continue
         IF    '${result}' != '${None}'
             BREAK
         END
-
-        # Check elapsed time
-        ${now}=       Get Current Date    result_format=epoch
-        ${elapsed}=   Evaluate    ${now} - ${start_epoch}
+        ${now}=                                 Get Current Date                            result_format=epoch
+        ${elapsed}=                             Evaluate                                    ${now} - ${start_epoch}
         IF    ${elapsed} >= ${max_timeout}
-            Terminate Process    ${p}    kill=${TRUE}
-            RETURN    ${None}    TIMEOUT    ${elapsed}
+              Terminate Process    ${p}    kill=${TRUE}
+              RETURN    ${None}    TIMEOUT    ${elapsed}
         END
     END
-
-    # 5. Process has finished → safely read result
-    ${end_epoch}=    Get Current Date    result_format=epoch
-    ${dur}=          Evaluate    float(${end_epoch}) - float(${start_epoch})
-
-    ${rc}=    Set Variable    ${result.rc}
-    ${out}=   Set Variable    ${result.stdout}
-    ${err}=   Set Variable    ${result.stderr}
-
+    # 5. Finished → compute duration
+    ${end_epoch}=                               Get Current Date                            result_format=epoch
+    ${dur}=                                     Evaluate                                    round(float(${end_epoch}) - float(${start_epoch}), 2)
+    ${rc}=                                      Set Variable                                ${result.rc}
+    ${out}=                                     Set Variable                                ${result.stdout}
+    ${err}=                                     Set Variable                                ${result.stderr}
     IF    ${rc} != 0
-        ${text}=    Catenate    SEPARATOR=\n    ${out}    ${err}
-        ${reason}=  Get Skip Reason    ${text}
+        ${text}=                                Catenate                                    SEPARATOR=\n    ${out}      ${err}
+        ${reason}=                              Get Skip Reason                             ${text}
         RETURN    ${None}    ${reason}    ${dur}
     END
-    # 6. Parse output safely (use your safe parser if you added it)
-    ${start}=    Evaluate    min([i for i in [r'''${out}'''.find('{'), r'''${out}'''.find('[')] if i != -1], default=-1)
-    IF    ${start} == -1
-        RETURN    ${None}    INVALID_JSON_OUTPUT    ${dur}
+    ${ok}    ${data}=                           Run Keyword And Ignore Error                Safe Parse Sf Json          ${out}
+    IF    '${ok}' != 'PASS'
+        RETURN    ${None}                       INVALID_JSON_OUTPUT                         ${dur}
     END
-    ${json_text}=    Evaluate    r'''${out}'''[${start}:]
-    ${data}=         Evaluate    json.loads('''${json_text}''')    modules=json
-
-    ${count}=    Set Variable    ${data}[result][totalSize]
-
+    ${has_result}=                              Run Keyword And Return Status               Dictionary Should Contain Key       ${data}     result
+    IF    not ${has_result}
+        RETURN    ${None}                       INVALID_JSON_STRUCTURE                      ${dur}
+    END
+    ${result_dict}=                             Get From Dictionary                         ${data}                     result
+    ${count}=                                   Get From Dictionary                         ${result_dict}              totalSize
     RETURN    ${count}    OK    ${dur}
 
-
 Get Tooling Object Names
-    [Documentation]                     Returns filtered Tooling API sObject names using /tooling/sobjects.
-    ...                                 Keeps only queryable objects and removes noisy suffix patterns.
-    ${resp}=                            Run Sf Api Request Rest Json    /services/data/v${API_VERSION}/tooling/sobjects/
-    ${is_none}=                         Run Keyword And Return Status    Should Be Equal    ${resp}    ${None}
+    [Documentation]                             Returns filtered Tooling API sObject names using /tooling/sobjects.
+    ...                                         Keeps only queryable objects and removes noisy suffix patterns.
+    ${resp}=                                    Run Sf Api Request Rest Json                /services/data/v${API_VERSION}/tooling/sobjects/
+    ${is_none}=                                 Run Keyword And Return Status               Should Be Equal    ${resp}    ${None}
     IF    ${is_none}
-          Log To Console                Tooling discovery failed; falling back to static TOOLING_OBJECTS list.
-          RETURN                        @{TOOLING_OBJECTS}
+          Log To Console                        Tooling discovery failed; falling back to static TOOLING_OBJECTS list.
+          RETURN                                @{TOOLING_OBJECTS}
     END
-    ${has_key}=                         Run Keyword And Return Status    Dictionary Should Contain Key    ${resp}    sobjects
+    ${has_key}=                                 Run Keyword And Return Status               Dictionary Should Contain Key    ${resp}    sobjects
     IF    not ${has_key}
-          Log To Console                Tooling discovery response missing "sobjects"; falling back.
-          RETURN                        @{TOOLING_OBJECTS}
+          Log To Console                        Tooling discovery response missing "sobjects"; falling back.
+          RETURN                                @{TOOLING_OBJECTS}
     END
-    ${sobjects}=                        Collections.Get From Dictionary    ${resp}    sobjects
-    @{skip_suffixes}=                   Create List
+    ${sobjects}=                                Collections.Get From Dictionary             ${resp}    sobjects
+    @{skip_suffixes}=                           Create List
     ...    Settings
     ...    Member
     ...    Members
@@ -317,186 +333,166 @@ Get Tooling Object Names
     ...    Definition
     ...    Definitions
 
-    @{names}=                           Create List
+    @{names}=                                   Create List
     FOR    ${obj}    IN    @{sobjects}
-        ${queryable}=                   Collections.Get From Dictionary    ${obj}    queryable
+        ${queryable}=                           Collections.Get From Dictionary             ${obj}    queryable
         IF    not ${queryable}
             CONTINUE
         END
-        ${name}=                        Collections.Get From Dictionary    ${obj}    name
-        ${skip}=                        Set Variable                       ${FALSE}
+        ${name}=                                Collections.Get From Dictionary             ${obj}    name
+        ${skip}=                                Set Variable                                ${FALSE}
         FOR    ${s}    IN    @{skip_suffixes}
-               ${ends}=                 Run Keyword And Return Status    Should End With    ${name}    ${s}
+               ${ends}=                         Run Keyword And Return Status               Should End With    ${name}    ${s}
             IF    ${ends}
-                  ${skip}=              Set Variable    ${TRUE}
+                  ${skip}=                      Set Variable                                ${TRUE}
                   Exit For Loop
             END
         END
         IF    ${skip}
               CONTINUE
         END
-        Append To List                  ${names}      ${name}
+        Append To List                          ${names}                                    ${name}
     END
-    ${count}=                           Get Length    ${names}
+    ${count}=                                   Get Length                                  ${names}
     IF    ${count} == 0
-          Log To Console                Tooling filter produced 0 objects; falling back to static list.
-          RETURN                        @{TOOLING_OBJECTS}
+          Log To Console                        Tooling filter produced 0 objects; falling back to static list.
+          RETURN                                @{TOOLING_OBJECTS}
     END
     RETURN    ${names}
 
 Log Summary All Objects
-    [Documentation]                     Print all data objects (Object: Count).
-    [Arguments]                         ${data_dict}
-    Log To Console                      \nAll data objects (Object: Count):
-    ${keys}=                            Get Dictionary Keys    ${data_dict}
+    [Documentation]                             Print all data objects (Object: Count).
+    [Arguments]                                 ${data_dict}
+    Log To Console                              \nAll data objects (Object: Count):
+    ${keys}=                                    Get Dictionary Keys                         ${data_dict}
     FOR    ${k}    IN    @{keys}
-        ${v}=                           Collections.Get From Dictionary     ${data_dict}    ${k}
-        Log To Console                  ${k}: ${v}
+        ${v}=                                   Collections.Get From Dictionary             ${data_dict}    ${k}
+        Log To Console                          ${k}: ${v}
     END
-
 
 Log Skipped Summary
-    [Documentation]                     Print skipped objects with reasons.
-    [Arguments]                         ${skipped_reasons}
-    Log To Console                      \nSkipped objects:
-    ${count}=                           Get Length                         ${skipped_reasons}
+    [Documentation]                             Print skipped objects with reasons.
+    [Arguments]                                 ${skipped_reasons}
+    Log To Console                              \nSkipped objects:
+    ${count}=                                   Get Length                                  ${skipped_reasons}
     IF    ${count} == 0
-          Log To Console                (none)
+          Log To Console                        (none)
           RETURN
     END
-    ${keys}=                            Get Dictionary Keys                ${skipped_reasons}
+    ${keys}=                                    Get Dictionary Keys                         ${skipped_reasons}
     FOR    ${k}    IN    @{keys}
-        ${v}=                           Collections.Get From Dictionary    ${skipped_reasons}    ${k}
-        Log To Console                  ${k}: ${v}
+        ${v}=                                   Collections.Get From Dictionary             ${skipped_reasons}    ${k}
+        Log To Console                          ${k}: ${v}
     END
 
+Generate Output File Name
+    ${timestamp}=                               Get Time
+    ${timestamp}=                               Replace String                              ${timestamp}    :           -
+    ${timestamp}=                               Replace String                              ${timestamp}    ${SPACE}    -
+    ${output_file}=                             Set Variable                                ${OUTPUT_DIR}${/}${OUTPUT_FILENAME}_${timestamp}.xlsx
+    RETURN                                      ${output_file}
 
 Get All Object Record Counts
-    [Documentation]                     Main flow: list -> filter -> count -> save JSON (+ durations).
+    [Documentation]                             Main flow: list -> filter -> count -> save JSON (+ durations).
     Check Prerequisites
-    ${output_file}=                     Set Variable                       ${OUTPUT_DIR}${/}${OUTPUT_FILENAME}
-    Log To Console                      Starting for org: ${ORG_ALIAS}
-    Log To Console                      Output: ${output_file}
-    ${list_json}=                       Run Sf Json    sobject list
-    @{all_names}=                       Get Object Names From List         ${list_json}
-    ${raw_count}=                       Get Length                         ${all_names}
-    Log To Console                      Raw objects found: ${raw_count}
-    @{countable}=                       Filter Countable Objects           @{all_names}
-    ${filtered}=                        Get Length                         ${countable}
-    Log To Console                      After filter: ${filtered}
-    @{limited}=                         Set Variable                       @{countable}
-    ${total}=                           Get Length                         ${limited}
-    Log To Console                      objects to process: ${total}
-    &{data_results}=                    Create Dictionary
-    &{tooling_results}=                 Create Dictionary
-    &{skipped_reasons}=                 Create Dictionary
-    &{durations_seconds}=               Create Dictionary
-
+    ${output_file}=                             Generate Output File Name
+    Log To Console                              Starting for org: ${ORG_ALIAS}
+    Log To Console                              Output: ${output_file}
+    ${list_json}=                               Run Sf Json    sobject    list
+    @{all_names}=                               Get Object Names From List                  ${list_json}
+    ${raw_count}=                               Get Length                                  ${all_names}
+    Log To Console                              Raw objects found: ${raw_count}
+    @{countable}=                               Filter Countable Objects                    @{all_names}
+    ${filtered}=                                Get Length                                  ${countable}
+    Log To Console                              After filter: ${filtered}
+    @{limited}=                                 Set Variable                                @{countable}
+    ${total}=                                   Get Length                                  ${limited}
+    Log To Console                              objects to process: ${total}
+    &{data_results}=                            Create Dictionary
+    &{tooling_results}=                         Create Dictionary
+    &{skipped_reasons}=                         Create Dictionary
+    &{durations_seconds}=                       Create Dictionary
     FOR    ${index}    ${obj}    IN ENUMERATE    @{limited}    start=1
-           Log To Console               [Standard]-[${index}/${total}] Counting: ${obj}
-           ${count}    ${reason}     ${dur}=    Get Record Count Safe    ${obj}    tooling=${FALSE}
+           Log To Console                       [Standard]-[${index}/${total}] Counting: ${obj}
+           ${count}    ${reason}     ${dur}=    Get Record Count Safe                       ${obj}    tooling=${FALSE}
            # Store duration always (even for skipped)
-           Set To Dictionary            ${durations_seconds}    ${obj}=${dur}
+           Set To Dictionary                    ${durations_seconds}                        ${obj}=${dur}
            IF    '${reason}' == 'OK'
-                  Set To Dictionary     ${data_results}    ${obj}=${count}
-                  Log To Console        [Standard]-[${index}/${total}] ${obj}: ${count} (t=${dur}s)
+                  Set To Dictionary             ${data_results}                             ${obj}=${count}
+                  Log To Console                [Standard]-[${index}/${total}] ${obj}: ${count} (t=${dur}s)
            ELSE
-                  Set To Dictionary     ${skipped_reasons}    ${obj}=${reason}
-                  Log To Console        [Standard]-[${index}/${total}] ${obj}: SKIPPED (${reason}) (t=${dur}s)
+                  Set To Dictionary             ${skipped_reasons}                          ${obj}=${reason}
+                  Log To Console                [Standard]-[${index}/${total}] ${obj}: SKIPPED (${reason}) (t=${dur}s)
            END
-           Sleep                        ${DELAY_SECONDS}
+           Sleep                                ${DELAY_SECONDS}
     END
-
     IF    ${INCLUDE_TOOLING}
-          Log To Console                  \nQuerying Tooling API objects...
+          Log To Console                        \nQuerying Tooling API objects...
           IF    ${DISCOVER_TOOLING_OBJECTS}
-                Log To Console            Discovering tooling objects dynamically...
-                @{tooling_list}=          Get Tooling Object Names
+                Log To Console                  Discovering tooling objects dynamically...
+                @{tooling_list}=                Get Tooling Object Names
           ELSE
-                @{tooling_list}=          Set Variable          @{TOOLING_OBJECTS}
+                @{tooling_list}=                Set Variable                                @{TOOLING_OBJECTS}
           END
           # Deduplicate tooling objects already processed as data objects
-          @{tooling_unique}=              Create List
+          @{tooling_unique}=                    Create List
           FOR    ${tobj}    IN    @{tooling_list}
-                 ${already_in_data}=      Run Keyword And Return Status    List Should Contain Value    ${limited}    ${tobj}
+                 ${already_in_data}=            Run Keyword And Return Status               List Should Contain Value    ${limited}    ${tobj}
                  IF    not ${already_in_data}
-                       Append To List     ${tooling_unique}     ${tobj}
+                       Append To List           ${tooling_unique}                           ${tobj}
                  END
           END
-          @{tooling_list}=                Set Variable          @{tooling_unique}
-          ${tooling_total}=               Get Length            ${tooling_list}
-          Log To Console       Tooling objects to process : ${tooling_total}
+          @{tooling_list}=                      Set Variable                                @{tooling_unique}
+          ${tooling_total}=                     Get Length                                  ${tooling_list}
+          Log To Console                        Tooling objects to process : ${tooling_total}
           FOR    ${index}    ${tobj}    IN ENUMERATE    @{tooling_list}    start=1
-                 Log To Console              [Tooling]-[${index}/${tooling_total}] Counting: ${tobj}
-                 ${tcount}    ${treason}     ${tdur}=    Get Record Count Safe    ${tobj}    tooling=${TRUE}
+                 Log To Console                 [Tooling]-[${index}/${tooling_total}] Counting: ${tobj}
+                 ${tcount}    ${treason}        ${tdur}=    Get Record Count Safe           ${tobj}    tooling=${TRUE}
                  # Store tooling duration too (prefix key so it won't collide)
-                 Set To Dictionary           ${durations_seconds}    TOOLING::${tobj}=${tdur}
+                 Set To Dictionary              ${durations_seconds}                        TOOLING::${tobj}=${tdur}
                  IF    '${treason}' == 'OK'
-                        Set To Dictionary    ${tooling_results}    ${tobj}=${tcount}
-                        Log To Console       [Tooling]-[${index}/${tooling_total}] ${tobj}: ${tcount} (t=${tdur}s)
+                        Set To Dictionary       ${tooling_results}                          ${tobj}=${tcount}
+                        Log To Console          [Tooling]-[${index}/${tooling_total}] ${tobj}: ${tcount} (t=${tdur}s)
                  ELSE
-                        Set To Dictionary    ${skipped_reasons}    ${tobj}=[TOOLING] ${treason}
-                        Log To Console       [Tooling]-[${index}/${tooling_total}] ${tobj}: SKIPPED (${treason}) (t=${tdur}s)
+                        Set To Dictionary       ${skipped_reasons}                          ${tobj}=[TOOLING] ${treason}
+                        Log To Console          [Tooling]-[${index}/${tooling_total}] ${tobj}: SKIPPED (${treason}) (t=${tdur}s)
                  END
           END
     END
     Save Results To Excel
+    ...    ${output_file}
     ...    ${data_results}
     ...    ${tooling_results}
     ...    ${skipped_reasons}
     ...    ${durations_seconds}
-    Log To Console                           \nDone! Results saved to: ${output_file}
-    Log Skipped Summary                      ${skipped_reasons}
-    Log Summary All Objects                  ${data_results}
-
+    Log To Console                              \nDone! Results saved to: ${output_file}
+    Log Skipped Summary                         ${skipped_reasons}
+    Log Summary All Objects                     ${data_results}
 
 Save Results To Excel
-    [Arguments]    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${durations_seconds}
-
-    ${output_file}=    Set Variable    ${OUTPUT_DIR}${/}${OUTPUT_FILENAME}
-
-    ${data_file}=       Set Variable    ${OUTPUT_DIR}${/}data.json
-    ${tooling_file}=    Set Variable    ${OUTPUT_DIR}${/}tooling.json
-    ${skipped_file}=    Set Variable    ${OUTPUT_DIR}${/}skipped.json
-    ${durations_file}=  Set Variable    ${OUTPUT_DIR}${/}durations.json
-
-    ${data_json}=       Evaluate    json.dumps($data_results)    modules=json
-    ${tooling_json}=    Evaluate    json.dumps($tooling_results)    modules=json
-    ${skipped_json}=    Evaluate    json.dumps($skipped_reasons)    modules=json
-    ${durations_json}=  Evaluate    json.dumps($durations_seconds)    modules=json
-
-    Create File    ${data_file}       ${data_json}
-    Create File    ${tooling_file}    ${tooling_json}
-    Create File    ${skipped_file}    ${skipped_json}
-    Create File    ${durations_file}  ${durations_json}
-
-    Run Process
-    ...    python
-    ...    src/utils/excel_writer.py
+    [Arguments]                                 ${output_file}                              ${data_results}                             ${tooling_results}           ${skipped_reasons}    ${durations_seconds}
+    ${data_file}=                               Set Variable                                ${OUTPUT_DIR}${/}data.json
+    ${tooling_file}=                            Set Variable                                ${OUTPUT_DIR}${/}tooling.json
+    ${skipped_file}=                            Set Variable                                ${OUTPUT_DIR}${/}skipped.json
+    ${durations_file}=                          Set Variable                                ${OUTPUT_DIR}${/}durations.json
+    ${data_json}=                               Evaluate                                    json.dumps($data_results)                   modules=json
+    ${tooling_json}=                            Evaluate                                    json.dumps($tooling_results)                modules=json
+    ${skipped_json}=                            Evaluate                                    json.dumps($skipped_reasons)                modules=json
+    ${durations_json}=                          Evaluate                                    json.dumps($durations_seconds)              modules=json
+    Create File                                 ${data_file}                                ${data_json}
+    Create File                                 ${tooling_file}                             ${tooling_json}
+    Create File                                 ${skipped_file}                             ${skipped_json}
+    Create File                                 ${durations_file}                           ${durations_json}
+    ${result}=    Run Process
+    ...    ${PYTHON}
+    ...     src${/}robot${/}libraries${/}ExcelWriter.py
     ...    ${data_file}
     ...    ${tooling_file}
     ...    ${skipped_file}
     ...    ${durations_file}
     ...    ${output_file}
-
-    Log To Console    Excel report generated: ${output_file}
-
-Save Results To Excel12345
-    [Arguments]    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${durations_seconds}
-
-    ${output_file}=    Set Variable    ${OUTPUT_DIR}${/}${OUTPUT_FILENAME}
-
-    ${data_json}=       Evaluate    json.dumps($data_results)    modules=json
-    ${tooling_json}=    Evaluate    json.dumps($tooling_results)    modules=json
-    ${skipped_json}=    Evaluate    json.dumps($skipped_reasons)    modules=json
-    ${durations_json}=  Evaluate    json.dumps($durations_seconds)    modules=json
-
-    Run Process
-    ...    python
-    ...    src/robot/library/ExcelWriter.py
-    ...    ${data_json}
-    ...    ${tooling_json}
-    ...    ${skipped_json}
-    ...    ${durations_json}
-    ...    ${output_file}
-    Log To Console    Excel report generated: ${output_file}
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    Log To Console                              ${result.stdout}
+    Log To Console                              ${result.stderr}
+    Should Be Equal As Integers                 ${result.rc}        0                       Excel generation failed:\n${result.stdout}\n${result.stderr}

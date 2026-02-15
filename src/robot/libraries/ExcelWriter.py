@@ -1,5 +1,6 @@
 import sys
 import json
+import os
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
@@ -21,16 +22,29 @@ def autosize(sheet):
         sheet.column_dimensions[column_letter].width = max_length + 4
 
 
+def load_json(path):
+    if not os.path.exists(path):
+        print(f"ERROR: File not found: {path}")
+        sys.exit(1)
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 def main():
     if len(sys.argv) != 6:
         print("Usage: excel_writer.py data_json tooling_json skipped_json durations_json output_file")
         sys.exit(1)
 
-    data_results = json.loads(sys.argv[1])
-    tooling_results = json.loads(sys.argv[2])
-    skipped_reasons = json.loads(sys.argv[3])
-    durations_seconds = json.loads(sys.argv[4])
+    data_results = load_json(sys.argv[1])
+    tooling_results = load_json(sys.argv[2])
+    skipped_reasons = load_json(sys.argv[3])
+    durations_seconds = load_json(sys.argv[4])
     output_file = sys.argv[5]
+
+    # Ensure output directory exists
+    output_dir = os.path.dirname(output_file)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     wb = Workbook()
 
@@ -45,19 +59,19 @@ def main():
     write_headers(skipped_sheet, ["Object Name", "Skip Reason"])
     write_headers(duration_sheet, ["Object Name", "Duration (Seconds)"])
 
-    for row, (k, v) in enumerate(data_results.items(), 2):
+    for row, (k, v) in enumerate(sorted(data_results.items()), 2):
         data_sheet.cell(row=row, column=1).value = k
         data_sheet.cell(row=row, column=2).value = v
 
-    for row, (k, v) in enumerate(tooling_results.items(), 2):
+    for row, (k, v) in enumerate(sorted(tooling_results.items()), 2):
         tooling_sheet.cell(row=row, column=1).value = k
         tooling_sheet.cell(row=row, column=2).value = v
 
-    for row, (k, v) in enumerate(skipped_reasons.items(), 2):
+    for row, (k, v) in enumerate(sorted(skipped_reasons.items()), 2):
         skipped_sheet.cell(row=row, column=1).value = k
         skipped_sheet.cell(row=row, column=2).value = v
 
-    for row, (k, v) in enumerate(durations_seconds.items(), 2):
+    for row, (k, v) in enumerate(sorted(durations_seconds.items()), 2):
         duration_sheet.cell(row=row, column=1).value = k
         duration_sheet.cell(row=row, column=2).value = v
 
