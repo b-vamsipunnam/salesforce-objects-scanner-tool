@@ -1,16 +1,12 @@
 *** Settings ***
-Documentation     Smoke tests for salesforce-objects-scanner
-...               Fast CI-safe checks (no real Salesforce connection)
-
+Documentation     Smoke tests for salesforce-objects-scanner. Fast CI-safe checks (no real Salesforce connection)
 Library           OperatingSystem
 Library           Collections
 Library           BuiltIn
 Library           String
 Resource          ../../src/robot/tests/Support.robot
 
-
 *** Keywords ***
-
 Is Windows
     ${os}=    Evaluate    __import__("os").name
     RETURN    ${os} == "nt"
@@ -132,9 +128,7 @@ Smoke - Filter Countable Objects
     ...    CustomObject__c
     ...    DataEncryptionKey
     ...    ApexClass
-
     @{filtered}=    Filter Countable Objects    @{objects}
-
     List Should Not Contain Value    ${filtered}    AccountHistory
     List Should Not Contain Value    ${filtered}    AccountFeed
     List Should Not Contain Value    ${filtered}    DataEncryptionKey
