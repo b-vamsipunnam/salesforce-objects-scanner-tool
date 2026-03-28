@@ -45,6 +45,7 @@ ${DISCOVER_TOOLING_OBJECTS}                     ${TRUE}
 @{COUNT_NOT_SUPPORTED_OBJECTS}                  DataEncryptionKey
 # Known objects that require additional WHERE clause (avoid wasting time; classify clearly)
 @{REQUIRES_WHERE_OBJECTS}                       DataStatistics
+@{TEMP_FILES}                                   PIPE    log.html    output.xml    report.html
 
 *** Keywords ***
 Check Prerequisites
@@ -523,3 +524,22 @@ Save Results To Excel
     Log To Console                              ${result.stdout}
     Log To Console                              ${result.stderr}
     Should Be Equal As Integers                 ${result.rc}        0                       Excel generation failed:\n${result.stdout}\n${result.stderr}
+
+Cleanup Runtime Artifacts
+    [Documentation]                        Cleans Pabot temp files, Excel handles, and process artifacts from project root.
+    ${items}=                              List Directory                   ${EXECDIR}
+    FOR    ${item}    IN    @{items}
+           ${full_path}=                   Set Variable                     ${EXECDIR}${/}${item}
+           ${is_uuid}=                     Evaluate                         len($item) == 32 and all(c in "0123456789abcdef" for c in $item)
+           ${is_known_temp}=               Evaluate                         $item in $TEMP_FILES
+           IF    ${is_uuid} or ${is_known_temp}
+              ${is_file}=                  Run Keyword And Return Status    File Should Exist                           ${full_path}
+            IF    ${is_file}
+                Log    Removing temp file: ${item}
+                Remove File    ${full_path}
+            END
+        END
+    END
+
+Cleanup Suite
+    Cleanup Runtime Artifacts
