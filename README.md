@@ -123,13 +123,19 @@ pip install -r requirements.txt
 
 1. Authenticate to your Salesforce org:
    ```bash
-   sf org login web --alias <org_name>
+   sf org login web --alias MyOrg
    ```
-2. Run:
+2. Configure org alias
+   Before running, update the ${ORG_ALIAS} variable in: `src/robot/orchestrator/scan.robot`
+   ```robot
+   *** Variables ***
+   ${ORG_ALIAS}    MyOrg
+   ```
+4. Run:
    ```bash
-   robot -d results --variable ORG_ALIAS:<org_name> src/robot/orchestrator/scan.robot
+   robot --test Object_Scanner -d results src/robot/orchestrator/scan.robot
    ```
-3. Check outputs:
+5. Check outputs:
    ```text
    JSON files     : output/
    Excel report   : output/SF_Objects_<datetime>.xlsx
@@ -178,13 +184,13 @@ salesforce-objects-scanner/
 
 ## Configuration
 
-| Variable                        | Default Value   | Description                          |
-|--------------------------------|----------------|--------------------------------------|
-| `${ORG_ALIAS}`                 | DeveloperOrg   | Target org alias                     |
-| `${INCLUDE_TOOLING}`           | ${TRUE}        | Include Tooling API objects          |
-| `${DISCOVER_TOOLING_OBJECTS}`  | ${TRUE}        | Dynamically discover Tooling objects |
-| `${DELAY_SECONDS}`             | 0.1            | Delay between queries                |
-| `${MAX_QUERY_TIMEOUT_SECONDS}` | 120            | Per-query timeout                    |
+| Variable                       | Default Value | Description                          |
+|--------------------------------|---------------|--------------------------------------|
+| `${ORG_ALIAS}`                 | MyOrg         | Target org alias                     |
+| `${INCLUDE_TOOLING}`           | ${TRUE}       | Include Tooling API objects          |
+| `${DISCOVER_TOOLING_OBJECTS}`  | ${TRUE}       | Dynamically discover Tooling objects |
+| `${DELAY_SECONDS}`             | 0.1           | Delay between queries                |
+| `${MAX_QUERY_TIMEOUT_SECONDS}` | 120           | Per-query timeout                    |
 
 ---
 
@@ -192,8 +198,8 @@ salesforce-objects-scanner/
 
 ### JSON Files
 
-| File           | Purpose                                |
-|----------------|----------------------------------------|
+| File                        | Purpose                                |
+|-----------------------------|----------------------------------------|
 | `data_<datetime>.json`      | Record counts for standard objects     |
 | `tooling_<datetime>.json`   | Record counts for tooling objects      |
 | `skipped_<datetime>.json`   | Skipped objects with reasons           |
@@ -203,7 +209,7 @@ salesforce-objects-scanner/
 
 | File                          | Purpose                              |
 |-------------------------------|--------------------------------------|
-| `SF_Objects_<datetime>.xlsx`   | Consolidated report for analysis     |
+| `SF_Objects_<datetime>.xlsx`  | Consolidated report for analysis     |
 
 ---
 
@@ -267,11 +273,11 @@ Planned enhancements:
 
 ## Troubleshooting
 
-| Issue | Cause | Fix |
-|------|------|-----|
-| sf not found | CLI not installed | Install Salesforce CLI |
-| Org alias not found | Not authenticated | sf org login web |
-| JSON parse error | CLI warnings | Safe Parse handles most cases |
+| Issue                     | Cause                             | Fix                                          |
+|---------------------------|-----------------------------------|----------------------------------------------|
+| sf not found              | CLI not installed                 | Install Salesforce CLI                       |
+| Org alias not found       | Not authenticated                 | sf org login web                             |
+| JSON parse error          | CLI warnings                      | Safe Parse handles most cases                |
 | No results / empty output | Auth expired or permissions issue | Re-run sf org login web or check permissions |
 
 ---
