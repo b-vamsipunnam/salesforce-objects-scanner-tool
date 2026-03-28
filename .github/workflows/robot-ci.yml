@@ -1,37 +1,39 @@
-name: Smoke Tests
+name: Robot CI
 
 on:
   push:
-    branches: [ main, feature/* ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install robotframework==7.2.2
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install robotframework==7.2.2
 
-    - name: Run smoke tests
-      run: |
-        mkdir -p results
-        robot -d results ci/robot/Smoke.robot
+      - name: Run smoke tests
+        run: |
+          mkdir -p results
+          robot -d results ci/robot/smoke.robot
 
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: smoke-test-results
-        path: results/
-        if-no-files-found: ignore
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: results/
+          if-no-files-found: ignore
