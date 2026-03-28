@@ -44,7 +44,7 @@ sf org login web
 Before submitting changes, ensure all tests pass:
 
 ```bash
-robot src/robot/tests/
+robot src/robot/orchestrator/
 ```
 
 ---

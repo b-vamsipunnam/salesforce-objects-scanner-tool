@@ -79,6 +79,10 @@ Native Salesforce tools have limitations:
 
 This design ensures predictable, scalable, and observable execution.
 
+<p align="center">
+  <img src="docs/architecture.png" width="700">
+</p>
+
 ## Technology Stack
 
 - Robot Framework  
@@ -121,7 +125,7 @@ pip install -r requirements.txt
    ```
 2. Run:
    ```bash
-   robot -d results --variable ORG_ALIAS:<org_name> src/robot/tests/Test.robot
+   robot -d results --variable ORG_ALIAS:<org_name> src/robot/orchestrator/scan.robot
    ```
 3. Check outputs:
    ```text
@@ -134,8 +138,8 @@ pip install -r requirements.txt
 
 ```
 salesforce-objects-scanner/
-├── output/                        # Generated JSON + Excel reports
-├── results/                       # Robot execution logs
+├── output/                                     # Generated JSON + Excel reports
+├── results/                                    # Robot execution logs
 │   ├── log.html
 │   ├── output.xml
 │   └── report.html
@@ -143,11 +147,11 @@ salesforce-objects-scanner/
 │   └── robot/
 │       ├── libraries/
 │       │   └── ExcelWriter.py
-│       └── tests/
-│           └── Test.robot
-├── Support.robot                 # Core logic  
+│       ├── orchestrator/
+│       │   └── scan.robot
+│       └── resources/
+│           └── keywords.robot                  # Core logic  
 ├── .gitignore
-├── .pabotsuitenames                                       # Pabot suite cache file
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
 ├── README.md

@@ -15,24 +15,18 @@ output.xml
 log.html
 report.html
 pabot_results/
-*.png
 *diagnosis.json
 .robotframework/
 
 # Salesforce CLI
 .sf/
 .sfdx/
-org_info.json
 deploy-options.json
 *.auth.json
 
 # Downloads & temp
-downloads/*
-!downloads/.gitkeep
 output/*
 !output/.gitkeep
-chromedriver.exe
-chromedriver
 
 .pabotsuitenames
 
@@ -54,10 +48,6 @@ Desktop.ini
 *.swp
 *.swo
 
-# Generated docs/files from runs (if created at root)
-CDL_DOC
-CV_DOC
-smoke_doc
 
 # UUID-like run folders that may end up at repo root
 ????????????????????????????????
