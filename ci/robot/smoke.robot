@@ -4,7 +4,7 @@ Library           OperatingSystem
 Library           Collections
 Library           BuiltIn
 Library           String
-Resource          ../../src/robot/tests/Support.robot
+Resource          ../../src/robot/resources/keywords.robot
 
 *** Keywords ***
 Is Windows
