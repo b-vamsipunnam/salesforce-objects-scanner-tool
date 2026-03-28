@@ -13,7 +13,6 @@ Library                                         DateTime
 Library                                         String
 
 *** Variables ***
-${ORG_ALIAS}                                    DeveloperOrg
 # Windows execution
 ${SF_CLI}                                       sf
 ${PYTHON}                                       python
@@ -371,6 +370,8 @@ Generate Output File Name
 
 Get All Object Record Counts
     [Documentation]                             Main flow: list -> filter -> count -> save JSON (+ durations).
+    [Arguments]                                 ${org_alias}
+    Set Test Variable                           ${ORG_ALIAS}                                ${org_alias}
     Check Prerequisites
     ${output_directory}=                        Init Output Directory
     ${output_directory}=                        Normalize Path                              ${output_directory}
