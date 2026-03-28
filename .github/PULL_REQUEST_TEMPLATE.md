@@ -1,80 +1,50 @@
 # Pull Request
 
-Thank you for your contribution! Please complete the sections below.
+Thank you for your contribution! Please provide the details below.
 
 ---
 
 ## Summary
-
-Describe your changes briefly:
-
 - What problem does this solve?
-- What did you change?
-- Why is it needed?
+- What changes were made?
+- Any impact on existing behavior?
+
+---
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Enhancement
+- [ ] Refactor
+- [ ] Documentation
 
 ---
 
 ## Related Issue
-
-Link related issue (if any):
-
-Fixes #<issue-number>  
-Closes #<issue-number>
+Fixes #<issue-number> (if applicable)
 
 ---
 
 ## Testing
+- What was tested?
+- How was it tested?
 
-How was this tested?
-
-- [ ] Robot Framework tests
-- [ ] Manual testing
-- [ ] Not applicable
-
-Commands run (if applicable):
-
-```bash
-robot src/robot/tests/Test.robot
-```
-
----
-
-## Test Results
-
-- [ ] All tests passed
-- [ ] Some tests failed (explain below)
+- [ ] Tests executed (Robot/manual)
+- [ ] No regressions
+- [ ] N/A
 
 ---
 
 ## Checklist
-
-Please confirm:
-
-- [ ] Code follows project standards
-- [ ] No secrets or credentials added
-- [ ] Tests added/updated where needed
-- [ ] Documentation updated (if applicable)
-- [ ] No unnecessary debug logs
+- [ ] Code follows project conventions
+- [ ] No sensitive data included
+- [ ] Documentation updated (if needed)
 
 ---
 
-## Security Impact
-
-- [ ] No security impact
-
-- [ ] Yes (explain below)
-
-If yes, describe:
+## Notes (Optional)
+Add any additional context, logs, or screenshots.
 
 ---
-## Additional Notes (Optional)
-
-Add any extra context, screenshots, or follow-up tasks here.
-
----
-Maintainer: **Bhimeswara Vamsi Punnam**
-
 
 Thank you for contributing!
-
----
