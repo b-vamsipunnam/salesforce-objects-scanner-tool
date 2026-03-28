@@ -1,23 +1,17 @@
+# Contributing to Salesforce Objects Scanner Tool
 
-# Contributing to Salesforce Files Downloader Tool
-
-Thank you for your interest in contributing to this project!
+Thank you for your interest in contributing!  
 We welcome bug reports, feature requests, documentation improvements, and code contributions.
-
-Please read this guide before submitting any contributions.
 
 ---
 
 ## Getting Started
 
-### 1. Fork the Repository
-
-- Click the **Fork** button on GitHub
-- Clone your fork locally:
+### 1. Fork & Clone
 
 ```bash
-git clone https://github.com/your-username/salesforce-files-downloader-tool.git
-cd salesforce-files-downloader-tool
+git clone https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool.git
+cd salesforce-objects-scanner-tool
 ```
 
 ---
@@ -51,12 +45,6 @@ Before submitting changes, ensure all tests pass:
 
 ```bash
 robot src/robot/tests/
-```
-
-For parallel execution:
-
-```bash
-pabot --pabotlib src/robot/tests/
 ```
 
 ---
@@ -126,7 +114,7 @@ Examples:
 Use meaningful commit messages:
 
 ```bash
-git commit -m "Fix: Handle invalid ContentDocumentId"
+git commit -m "Fix: Handle invalid object query"
 ```
 
 Format:
@@ -171,9 +159,9 @@ Your PR should include:
 Example:
 
 ```robot
-Download Salesforce File
-    [Arguments]    ${content_id}
-    Log    Downloading ${content_id}
+Get Object Record Count
+    [Arguments]    ${object_name}
+    Log    Processing ${object_name}
 ```
 ---
 
@@ -183,7 +171,7 @@ Never commit:
 
 * Access tokens
 * Passwords
-* `org_info.json` with secrets
+* secrets
 
 Guidelines:
 
