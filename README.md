@@ -1,148 +1,302 @@
-
 # Salesforce Objects Scanner
 
-A lightweight, robust Salesforce CLI utility to scan all queryable sObjects in an org and retrieve record counts per object.
+**Quickly understand your Salesforce org’s data footprint.**
 
-Ideal for:
-- Org health checks
-- Storage usage analysis
-- Large Data Volume (LDV) risk identification
-- Data cleanup planning
-- Migration / sandbox refresh preparation
+Scan all queryable sObjects, get accurate record counts, identify Large Data Volume (LDV) risks, and generate ready-to-analyze Excel reports — all with safe, timeout-protected execution.
 
+> Enterprise-grade Salesforce org analysis tool for data visibility, LDV detection, and migration planning.
+> Designed to handle Salesforce orgs with hundreds to thousands of objects while maintaining predictable execution and structured outputs.
+---
 
-Built with **Robot Framework** — easy to run, modify, extend, and integrate into CI/CD or scheduled jobs.
+## Built With
 
-## Features
+[![Robot Framework](https://img.shields.io/badge/Robot%20Framework-5.0+-orange?style=flat&logo=robotframework&logoColor=white)](https://robotframework.org/)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![Salesforce CLI](https://img.shields.io/badge/Salesforce%20CLI-sf-00A1E0?style=flat&logo=salesforce&logoColor=white)](https://developer.salesforce.com/tools/sfdxcli)
+[![CI](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/actions/workflows/robot-ci.yml/badge.svg)](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/actions)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat&logo=open-source-initiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
-- Scans **all queryable sObjects** using `sf sobject list --json`
-- Retrieves record count via `SELECT COUNT() FROM ObjectName` (data + Tooling API)
-- Smart filtering: skips noisy/restricted objects (History, Feed, Share, ChangeEvent, Big Objects, etc.)
-- Dynamic Tooling API discovery (`/tooling/sobjects/`) with fallback to static list
-- Timeout protection + per-object dynamic timeouts (e.g., longer for `ConnectedApplication`)
-- Detailed error classification & skip reasons (e.g. `COUNT_NOT_SUPPORTED`, `REQUIRES_WHERE_StatType`)
-- Tracks duration per object + total runtime
-- Outputs clean JSON + console summary (top counts, skipped objects)
-- Cross-platform (Windows + Mac/Linux) — handles `sf.cmd` correctly
+---
 
-## Requirements
+## Introduction
 
-- **Salesforce CLI** (`sf`) installed and authenticated to your org  
-  → `sf org login web --alias DeveloperOrg` (or your alias)
-- **Robot Framework** 5.0+  
-  `pip install robotframework`
-- Python 3.8+ (Robot runs on Python)
-- Libraries used: `OperatingSystem`, `Collections`, `Process`, `DateTime`, `String`, `json` (all built-in or standard)
+The Salesforce Objects Scanner is an automation-driven framework that analyzes your Salesforce org’s data footprint by retrieving accurate record counts across all queryable objects.
 
-No extra pip packages needed beyond Robot Framework itself.
+Built using **Robot Framework + Salesforce CLI**, the tool provides a structured and reliable way to assess org size, identify large objects, and support migration planning.
 
-## Installation
+---
 
-1. Clone or download the repository
-2. Navigate to the folder containing `Support.robot` (and your test suite if separate)
-3. (Optional) Create a virtual environment:
+## When to Use This Tool
+
+This tool is ideal when you need to:
+
+- Analyze Salesforce org data volume  
+- Identify large objects (LDV risk)  
+- Perform storage and usage audits  
+- Prepare for data migration or sandbox refresh
+- Plan data cleanup initiatives  
+
+---
+
+## Why This Exists
+
+Native Salesforce tools have limitations:
+
+- No unified way to scan all objects  
+- Limited visibility into object-level data size  
+- No structured reporting across all sObjects  
+- Manual and time-consuming analysis
+
+---
+
+## Key Features
+
+- Scans all queryable objects using `sf sobject list --json`
+- Executes `SELECT COUNT()` queries across standard and Tooling API objects
+- Smart filtering of noisy and unsupported objects
+- Dynamic Tooling API discovery with fallback
+- Timeout-controlled execution (prevents long-running failures)
+- Robust JSON parsing (handles CLI output inconsistencies)
+- Structured skip classification:
+  - COUNT_NOT_SUPPORTED  
+  - REQUIRES_WHERE  
+  - INVALID_TYPE / restricted objects  
+- Per-object execution time tracking
+- Generates structured JSON outputs and Excel report
+- Clear execution summary with success and skip metrics
+
+---
+
+## Architecture Overview
+
+**Execution model:**
+
+- **Control Layer:** Salesforce CLI (metadata + queries)  
+- **Orchestration Layer:** Robot Framework (logic + workflow)  
+- **Execution Layer:** Process-based execution with timeout protection  
+- **Output Layer:** JSON artifacts + Excel report  
+
+This design ensures predictable, scalable, and observable execution.
+
+## Technology Stack
+
+- Robot Framework  
+- Salesforce CLI (sf)  
+- Python  
+- Custom ExcelWriter utility  
+
+---
+
+## Quick Start
+
+### Prerequisites
+- Python 3.8+
+- Salesforce CLI (`sf`)
+- Robot Framework and dependencies
+
+### Installation
+
+```bash
+git clone https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool.git
+cd salesforce-objects-scanner-tool
+python -m venv venv
+
+# Windows:
+venv\Scripts\activate
+
+# macOS/Linux:
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+--- 
+
+## Run the Scanner
+
+1. Authenticate to your Salesforce org:
    ```bash
-   python -m venv venv
-   source venv/bin/activate   # Linux/Mac
-   venv\Scripts\activate      # Windows
-   pip install robotframework
+   sf org login web --alias <org_name>
    ```
+2. Run:
+   ```bash
+   robot -d results --variable ORG_ALIAS:<org_name> src/robot/tests/Test.robot
+   ```
+3. Check outputs:
+   ```text
+   JSON files     : output/
+   Excel report   : output/SF_Objects_<timestamp>.xlsx
+   Logs & reports : results/
+   ```   
 
-## Usage
-
-Run the Test:
-
-```bash
-robot --test Object_Scanner -d reports src/robot/tests/Test.robot
-```
-
-Or run directly if `Get All Object Record Counts` is the main keyword:
-
-```bash
-robot --loglevel INFO --outputdir results Support.robot
-```
-
-### Example Output (console)
+## Project Structure
 
 ```
-Starting for org: DeveloperOrg
-Output: results/salesforce_record_counts.json
-Raw objects found: 1514
-After filter: 892
-Objects to process: 892
+salesforce-objects-scanner/
+├── output/                        # Generated JSON + Excel reports
+├── results/                       # Robot execution logs
+│   ├── log.html
+│   ├── output.xml
+│   └── report.html
+├── src/
+│   └── robot/
+│       ├── libraries/
+│       │   └── ExcelWriter.py
+│       └── tests/
+│           └── Test.robot
+├── Support.robot                 # Core logic  
+├── .gitignore
+├── .pabotsuitenames                                       # Pabot suite cache file
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── README.md
+├── requirements.txt
+└── SECURITY.md
 
-[1/892] 0.1% Counting: Account
-[Standard]-[1/892] Account: 1245 (t=0.9s)
-...
-
-Querying Tooling API objects...
-Discovering tooling objects dynamically...
-Tooling objects to process: 28
-[1/28] 3.6% Counting: ApexClass
-[Tooling]-[1/28] ApexClass: 156 (t=1.2s)
-...
-
-Done! Results saved to: results/salesforce_record_counts.json
-Total runtime: 12 minutes 45 seconds
 ```
-
-### Output Files
-
-- `results/salesforce_record_counts.json`  
-  Structured JSON with:
-  - `org_alias`
-  - `generated_at`
-  - `data_objects` → {ObjectName: count}
-  - `tooling_objects` → {ObjectName: count}
-  - `skipped_objects` → {ObjectName: reason}
-  - `durations_seconds` → {ObjectName: seconds}
+---
 
 ## Configuration
 
-Edit these variables at the top of `Support.robot`:
+| Variable                        | Default Value   | Description                          |
+|--------------------------------|----------------|--------------------------------------|
+| `${ORG_ALIAS}`                 | DeveloperOrg   | Target org alias                     |
+| `${INCLUDE_TOOLING}`           | ${TRUE}        | Include Tooling API objects          |
+| `${DISCOVER_TOOLING_OBJECTS}`  | ${TRUE}        | Dynamically discover Tooling objects |
+| `${DELAY_SECONDS}`             | 0.1            | Delay between queries                |
+| `${MAX_QUERY_TIMEOUT_SECONDS}` | 120            | Per-query timeout                    |
 
-```robotframework
-${ORG_ALIAS}                    DeveloperOrg        # ← change to your alias
-${INCLUDE_TOOLING}              ${TRUE}             # Set to ${FALSE} to skip Tooling API
-${DISCOVER_TOOLING_OBJECTS}     ${TRUE}             # Dynamic vs static list
-${DELAY_SECONDS}                0.1                 # Increase if hitting API limits
-${MAX_QUERY_TIMEOUT_SECONDS}    120                 # Max per query
+---
+
+## Output Files
+
+### JSON Files
+
+| File           | Purpose                                |
+|----------------|----------------------------------------|
+| data.json      | Record counts for standard objects     |
+| tooling.json   | Record counts for tooling objects      |
+| skipped.json   | Skipped objects with reasons           |
+| durations.json | Execution time per object              |
+
+### Excel Report
+
+| File                          | Purpose                              |
+|-------------------------------|--------------------------------------|
+| SF_Objects_<timestamp>.xlsx   | Consolidated report for analysis     |
+
+---
+
+## Example Execution
+
+Typical console output:
+
+```text
+Starting for org: DeveloperOrg
+Raw objects found: 1500+
+After filter: 800+
+
+[Standard]-[1/800] Account: 1245 (t=0.9s)
+
+Querying Tooling API objects...
+
+===== SUMMARY =====
+Success(Data): 780
+Success(Tooling): 28
+Skipped: 22
+=====================
 ```
+---
 
-## Extending the Tool
+## Execution Details
 
-Easy to customize:
+* Each object is queried independently
+* Timeout protection prevents long-running queries
+* Skipped objects are classified and logged
+* Execution durations are tracked per object
+* Results are persisted in structured format
 
-- Add more objects to skip → edit `@{NON_COUNTABLE_OBJECTS}`, `@{COUNT_NOT_SUPPORTED_OBJECTS}`
-- Change polling interval → `${POLL_INTERVAL_SECONDS}`
-- Add CSV export → see example in comments or request it
-- Run only specific objects → pass a list instead of full scan
-- Schedule → cron job / Windows Task Scheduler → `robot Support.robot`
+---
+
+## Limitations & Trade-offs
+
+* COUNT() queries may be slow for large datasets
+* Some objects require WHERE clauses and are skipped
+* Dependent on Salesforce CLI output format
+* Currently optimized for Windows environments
+* Very large orgs may take 10–30+ minutes depending on size and network conditions
+
+---
+
+## CI/CD Compatibility
+* Designed for headless execution
+* Works with GitHub Actions, Jenkins, Azure DevOps
+* No manual setup required
+
+---
+
+## Roadmap
+
+Planned enhancements:
+* Parallel execution (Pabot integration)
+* Resume capability for long scans
+* Cross-platform support improvements
+* Advanced analytics (top objects, trends)
+
+---
+
 
 ## Troubleshooting
 
-| Problem                                   | Likely Cause                          | Fix |
-|-------------------------------------------|----------------------------------------|-----|
-| "Salesforce CLI not found"                | `sf` not in PATH                      | Install/update sf CLI |
-| "Org alias not found"                     | Not logged in                         | `sf org login web --alias DeveloperOrg` |
-| Long-running queries timeout              | Object is very large/slow             | Increase `${MAX_QUERY_TIMEOUT_SECONDS}` or add to `@{SLOW_OBJECTS}` |
-| "No JSON found" or parse errors           | CLI output format changed             | Update `Safe Parse Sf Json` or check `sf --version` |
-| Windows-specific failures                 | `sf.cmd` path issue                   | Ensure `sf` works in cmd.exe manually |
+| Issue | Cause | Fix |
+|------|------|-----|
+| sf not found | CLI not installed | Install Salesforce CLI |
+| Org alias not found | Not authenticated | sf org login web |
+| JSON parse error | CLI warnings | Safe Parse handles most cases |
+| No results / empty output | Auth expired or permissions issue | Re-run sf org login web or check permissions |
 
-## License
+---
 
-MIT License (or your preferred open-source license)
+## Security
 
-Feel free to fork, contribute, or use in any project!
+* No credentials stored in code
+* Uses Salesforce CLI authentication
+* Sensitive files should be excluded via .gitignore
+
+---
 
 ## Contributing
 
-Pull requests welcome! Especially:
-- Better skip reason patterns
-- Retry logic for rate limits
-- CSV / Excel export
-- Parallel execution (with Pabot)
+**Contributions are welcome!**
 
-Questions or issues → open an issue or reach out.
+* Open issues for bugs
+* Submit pull requests for improvements
+* Follow existing coding patterns
+* Performance improvements 
+* Better error classification 
+* Additional output formats 
+* Feature enhancements
 
-Happy scanning!
+## Support
+
+If this project helps you:
+
+- Star ⭐ the repository  
+- Share feedback  
+- Open issues for improvements  
+
+Your support helps improve and maintain the project.
+---
+
+## Author
+ 
+**Bhimeswara Vamsi Punnam** — Lead Software Development Engineer in Test (SDET)
+ 
+**Contact:** [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/bvamsipunnam)
+
+---
+
+## License
+
+This project is licensed under the MIT License.  
+See the [LICENSE](LICENSE) file for full terms and conditions.
