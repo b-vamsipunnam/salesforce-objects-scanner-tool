@@ -1,21 +1,18 @@
 # Python / Robot Framework
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 .Python
+
 env/
 venv/
 .venv/
-pip-log.txt
-pip-delete-this-directory.txt
 
-# Robot Framework / Pabot output
+# Robot Framework Results
+results/
 output.xml
 log.html
 report.html
 pabot_results/
-*diagnosis.json
 .robotframework/
 
 # Salesforce CLI
@@ -24,23 +21,25 @@ pabot_results/
 deploy-options.json
 *.auth.json
 
-# Downloads & temp
+# Runtime Output (IMPORTANT)
 output/*
 !output/.gitkeep
 
+# To keep folder structure only:
+#!output/Run_*/
+#!output/Run_*/.gitkeep
+
+# Pabot internal
 .pabotsuitenames
 
 # Editors / IDE
 .vscode/
 .idea/
 *.iml
-*.sublime-project
-*.sublime-workspace
 
-# OS junk
+# OS files
 .DS_Store
 Thumbs.db
-ehthumbs.db
 Desktop.ini
 
 # Misc
@@ -48,6 +47,5 @@ Desktop.ini
 *.swp
 *.swo
 
-
-# UUID-like run folders that may end up at repo root
+# Prevent accidental root-level UUID folders
 ????????????????????????????????

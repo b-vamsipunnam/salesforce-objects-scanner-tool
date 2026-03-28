@@ -23,7 +23,9 @@ Scan all queryable sObjects, get accurate record counts, identify Large Data Vol
 
 The Salesforce Objects Scanner is an automation-driven framework that analyzes your Salesforce org’s data footprint by retrieving accurate record counts across all queryable objects.
 
-Built using **Robot Framework + Salesforce CLI**, the tool provides a structured and reliable way to assess org size, identify large objects, and support migration planning.
+Built using **Robot Framework + Salesforce CLI**, the tool provides a structured and reliable way to assess org size, identify large objects (LDV risks), and support migration planning.
+
+Native Salesforce tools offer limited visibility into object-level data size and lack a unified way to analyze all sObjects. This tool addresses those gaps by delivering comprehensive, structured reporting across your entire org.
 
 ---
 
@@ -65,7 +67,6 @@ Native Salesforce tools have limitations:
 - Per-object execution time tracking
 - Generates structured JSON outputs and Excel report
 - Clear execution summary with success and skip metrics
-
 ---
 
 ## Architecture Overview
@@ -77,7 +78,8 @@ Native Salesforce tools have limitations:
 - **Execution Layer:** Process-based execution with timeout protection  
 - **Output Layer:** JSON artifacts + Excel report  
 
-This design ensures predictable, scalable, and observable execution.
+This design ensures predictable, scalable, and observable execution. 
+Each execution creates an isolated run folder to ensure clean, reproducible outputs.
 
 <p align="center">
   <img src="docs/architecture.png" width="700">
@@ -130,7 +132,7 @@ pip install -r requirements.txt
 3. Check outputs:
    ```text
    JSON files     : output/
-   Excel report   : output/SF_Objects_<timestamp>.xlsx
+   Excel report   : output/SF_Objects_<datetime>.xlsx
    Logs & reports : results/
    ```   
 
@@ -138,8 +140,22 @@ pip install -r requirements.txt
 
 ```
 salesforce-objects-scanner/
-├── output/                                     # Generated JSON + Excel reports
-├── results/                                    # Robot execution logs
+├── .github/
+│   ├── workflows/
+│   │   └── robot-ci.yml                                   # GitHub Actions CI
+│   └── PULL_REQUEST_TEMPLATE.md                           # Pull request template
+├── ci/
+│   └── robot/
+│       └── smoke.robot
+├── output/                                                # Generated runtime outputs
+│   └── Run_<datetime>_<uuid>/                             # Isolated folder for each execution
+│       ├── json/                                          # Structured JSON artifacts
+│       │   ├── data_<datetime>.json
+│       │   ├── tooling_<datetime>.json
+│       │   ├── skipped_<datetime>.json
+│       │   └── durations_<datetime>.json
+│       └── SF_Objects_<datetime>.xlsx                     # Consolidated Excel report
+├── results/                                               # Robot Framework execution logs
 │   ├── log.html
 │   ├── output.xml
 │   └── report.html
@@ -150,14 +166,13 @@ salesforce-objects-scanner/
 │       ├── orchestrator/
 │       │   └── scan.robot
 │       └── resources/
-│           └── keywords.robot                  # Core logic  
+│           └── keywords.robot                             # Core workflow and keywords
 ├── .gitignore
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
 ├── README.md
 ├── requirements.txt
 └── SECURITY.md
-
 ```
 ---
 
@@ -179,16 +194,16 @@ salesforce-objects-scanner/
 
 | File           | Purpose                                |
 |----------------|----------------------------------------|
-| data.json      | Record counts for standard objects     |
-| tooling.json   | Record counts for tooling objects      |
-| skipped.json   | Skipped objects with reasons           |
-| durations.json | Execution time per object              |
+| `data_<datetime>.json`      | Record counts for standard objects     |
+| `tooling_<datetime>.json`   | Record counts for tooling objects      |
+| `skipped_<datetime>.json`   | Skipped objects with reasons           |
+| `durations_<datetime>.json` | Execution time per object              |
 
 ### Excel Report
 
 | File                          | Purpose                              |
 |-------------------------------|--------------------------------------|
-| SF_Objects_<timestamp>.xlsx   | Consolidated report for analysis     |
+| `SF_Objects_<datetime>.xlsx`   | Consolidated report for analysis     |
 
 ---
 
@@ -215,11 +230,10 @@ Skipped: 22
 
 ## Execution Details
 
-* Each object is queried independently
-* Timeout protection prevents long-running queries
-* Skipped objects are classified and logged
-* Execution durations are tracked per object
-* Results are persisted in structured format
+* Each object is queried independently with timeout protection
+* Skipped objects are classified and logged with clear reasons
+* Execution time is tracked per object
+* Results are stored in structured JSON and Excel formats
 
 ---
 

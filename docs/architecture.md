@@ -16,27 +16,30 @@ The solution combines:
 
 ## Why This Architecture
 
-Salesforce does not provide a single unified way to retrieve record counts across all objects efficiently.
+Salesforce lacks a unified mechanism to retrieve record counts across all objects efficiently.  
 
-Key challenges:
-- Large number of objects (standard + custom + tooling)
-- Some objects require filters or are not queryable
-- Long-running queries can block execution
+Challenges include:
+- Large number of objects (standard, custom, tooling)
+- Non-queryable or restricted objects
+- Long-running queries impacting execution stability
 
-This architecture addresses these challenges by:
+This architecture ensures safe, transparent, and predictable execution through CLI-driven queries, timeout protection, and structured outputs.  
 
-- Using Salesforce CLI for consistent and authenticated query execution  
-- Applying timeout protection to prevent long-running failures  
-- Classifying skipped objects for transparency  
-- Generating structured outputs for downstream analysis  
+## Key Architectural Characteristics
+
+- Deterministic execution (single-pass, no retry amplification)
+- CLI-driven control plane for consistent and authenticated operations
+- Strong separation of orchestration, execution, and output layers
+- Structured observability via JSON artifacts and Excel reporting
+
+## Key Execution Behavior
+
+- Each execution creates an isolated run folder (Run_<datetime>_<uuid>)
+- Ensures reproducibility, traceability, and zero cross-run contamination
 
 ---
 
 ## High-Level Architecture
-
-### Architecture Breakdown
-
-The system follows a layered execution model:
 
 <p align="center">
   <img src="architecture.png" width="700">
@@ -56,7 +59,7 @@ The system follows a layered execution model:
 
 - Coordinates full scan workflow  
 - Applies filtering logic for unsupported objects  
-- Handles retry-safe, deterministic execution  
+- Ensures deterministic, retry-free execution
 - Manages logging and reporting  
 
 ---
@@ -66,19 +69,19 @@ The system follows a layered execution model:
 - Executes queries per object  
 - Applies per-query timeout protection  
 - Tracks execution duration  
-- Ensures controlled and predictable runtime  
+- Ensures predictable and bounded execution
 
 ---
 
 ### Output Layer
 
 - JSON artifacts:
-  - `data.json`
-  - `tooling.json`
-  - `skipped.json`
-  - `durations.json`
+  - `data_<datetime>.json`
+  - `tooling_<datetime>.json`
+  - `skipped_<datetime>.json`
+  - `durations_<datetime>.json`
 - Excel report:
-  - `SF_Objects_<timestamp>.xlsx`
+  - `SF_Objects_<datetime>.xlsx`
 
 ---
 
@@ -86,8 +89,22 @@ The system follows a layered execution model:
 
 ```
 salesforce-objects-scanner/
-├── output/                                     # Generated JSON + Excel reports
-├── results/                                    # Robot execution logs
+├── .github/
+│   ├── workflows/
+│   │   └── robot-ci.yml                                   # GitHub Actions CI
+│   └── PULL_REQUEST_TEMPLATE.md                           # Pull request template
+├── ci/
+│   └── robot/
+│       └── smoke.robot
+├── output/                                                # Generated runtime outputs
+│   └── Run_<datetime>_<uuid>/                             # Isolated folder for each execution
+│       ├── json/                                          # Structured JSON artifacts
+│       │   ├── data_<datetime>.json
+│       │   ├── tooling_<datetime>.json
+│       │   ├── skipped_<datetime>.json
+│       │   └── durations_<datetime>.json
+│       └── SF_Objects_<datetime>.xlsx                     # Consolidated Excel report
+├── results/                                               # Robot Framework execution logs
 │   ├── log.html
 │   ├── output.xml
 │   └── report.html
@@ -98,17 +115,14 @@ salesforce-objects-scanner/
 │       ├── orchestrator/
 │       │   └── scan.robot
 │       └── resources/
-│           └── keywords.robot                  # Core logic  
+│           └── keywords.robot                             # Core workflow and keywords
 ├── .gitignore
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
 ├── README.md
 ├── requirements.txt
 └── SECURITY.md
-
 ```
-
-
 ---
 
 ## Folder Responsibilities
@@ -161,7 +175,7 @@ salesforce-objects-scanner/
   - `INVALID_TYPE`
 - No retry amplification (predictable execution)
 - Failures are recorded in `skipped.json`
-- Execution continues without interruption  
+- Execution continues without interruption (fault isolation)
 
 ---
 
