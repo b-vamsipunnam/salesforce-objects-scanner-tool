@@ -5,8 +5,8 @@ Suite Teardown                                  Cleanup Suite
 
 *** Variables ***
 # Set this to the same alias used in: sf org login web --alias <org_name>
-${ORG_ALIAS}              MyOrg
+${ORG_ALIAS}                                    MyOrg
 
 *** Test Cases ***
 Object_Scanner
-    Get All Object Record Counts
+    Get All Object Record Counts                ${ORG_ALIAS}
