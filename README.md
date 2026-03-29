@@ -15,6 +15,7 @@ Scan all queryable sObjects, get accurate record counts, identify Large Data Vol
 [![Salesforce CLI](https://img.shields.io/badge/Salesforce%20CLI-sf-00A1E0?style=flat&logo=salesforce&logoColor=white)](https://developer.salesforce.com/tools/sfdxcli)
 [![Node.js](https://img.shields.io/badge/Node.js-18.20.4-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![CI](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/actions/workflows/robot-ci.yml/badge.svg)](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/actions)
+[![Release](https://img.shields.io/github/v/release/b-vamsipunnam/salesforce-objects-scanner-tool?style=flat&color=orange&logo=github&logoColor=white)](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/releases)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat&logo=open-source-initiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
 ---
