@@ -1,10 +1,10 @@
 *** Settings ***
 Documentation                                   Retrieve record counts for Salesforce objects using Salesforce CLI (sf).
-...                                             Filters noisy objects, limits runtime, uses timeout protection (polling).
+...                                             Applies filtering to remove noisy and unsupported objects, and enforces timeout-controlled execution for reliability.
 ...                                             Enhancements:
-...                                             - Parses sf JSON error payload for better skip reasons
-...                                             - Logs per-object duration (seconds)
-...                                             - Adds early-skip lists for known "count not supported" objects
+...                                             - Robust JSON parsing to extract meaningful error details from sf responses
+...                                             - Per-object execution time tracking (in seconds)
+...                                             - Predefined skip handling for known "COUNT() not supported" and restricted objects
 Library                                         OperatingSystem
 Library                                         Collections
 Library                                         BuiltIn
@@ -13,7 +13,6 @@ Library                                         DateTime
 Library                                         String
 
 *** Variables ***
-# Windows execution
 ${SF_CLI}                                       sf
 ${PYTHON}                                       python
 ${OUTPUT_DIR}                                   ${EXECDIR}${/}output
@@ -44,7 +43,9 @@ ${RUN NAME}                                     Run_
 
 *** Keywords ***
 Check Prerequisites
-    [Documentation]                             Ensure Salesforce CLI is installed and org alias is authenticated.
+    [Documentation]                             Validate environment prerequisites including Salesforce CLI installation and org authentication.
+    ...                                         Resolves CLI executable path and verifies connectivity to the target org.
+    ...                                         Extracts and stores API version for subsequent operations.
     Create Directory                            ${OUTPUT_DIR}
     ${where_res}=                               Run Process                      where    sf    stdout=PIPE    stderr=PIPE
     Should Be Equal As Integers                 ${where_res.rc}    0             msg=Salesforce CLI (sf) not found in PATH.
@@ -79,6 +80,9 @@ Check Prerequisites
     Log To Console                              Connected to ${ORG_ALIAS} (API v${API_VERSION})
 
 Safe Parse Sf Json
+    [Documentation]                             Safely parse Salesforce CLI JSON output, handling noisy or prefixed logs.
+    ...                                         Attempts direct parsing and falls back to extracting valid JSON payload.
+    ...                                         Ensures robust handling of inconsistent CLI responses.
     [Arguments]                                 ${raw}
     Should Not Be Empty                         ${raw}                          No output returned from sf.
     ${status1}    ${data1}=                     Run Keyword And Ignore Error    Evaluate    json.loads($raw)    modules=json
@@ -95,7 +99,9 @@ Safe Parse Sf Json
     Fail                                        Unable to parse sf JSON output.\nRaw output:\n${raw}
 
 Run Sf Json
-    [Documentation]                             Run an sf command and return parsed JSON dict.
+    [Documentation]                             Execute Salesforce CLI command and return parsed JSON response.
+    ...                                         Automatically appends org context and JSON output flags.
+    ...                                         Validates execution and ensures consistent structured output.
     [Arguments]                                 @{command_parts}
     ${res}=                                     Run Process
     ...    ${SF_CLI}
@@ -110,7 +116,9 @@ Run Sf Json
     RETURN                                      ${data}
 
 Run Sf Command
-    [Documentation]                             Execute Salesforce CLI command and return rc, stdout, stderr.
+    [Documentation]                             Execute Salesforce CLI command and return raw rc, stdout, and stderr.
+    ...                                         Provides low-level command execution for flexible use cases.
+    ...                                         Used for APIs and custom CLI interactions.
     [Arguments]                                 @{args}
     Log                                         Running: ${SF_CLI} @{args}
     ${result}=                                  Run Process
@@ -127,7 +135,9 @@ Run Sf Command
 
 
 Run Sf Api Request Rest Json
-    [Documentation]                             Call Salesforce REST endpoint via sf CLI and return parsed JSON dict.
+    [Documentation]                             Invoke Salesforce REST API via CLI and return parsed JSON response.
+    ...                                         Handles request execution and validates response status.
+    ...                                         Ensures safe parsing of API output.
     [Arguments]                                 ${relative_url}
     ${rc}    ${out}    ${err}=                  Run Sf Command
     ...    api
@@ -142,13 +152,17 @@ Run Sf Api Request Rest Json
     RETURN                                      ${data}
 
 Get Object Names From List
-    [Documentation]                             sf sobject list --json => {"result": ["Account", ...]}.
+    [Documentation]                             Extract object names from Salesforce CLI sobject list JSON output.
+    ...                                         Retrieves list of queryable object names from result payload.
+    ...                                         Returns clean list for further processing.
     [Arguments]                                 ${list_json}
     @{names}=                                   Collections.Get From Dictionary             ${list_json}    result
     RETURN                                      ${names}
 
 Filter Countable Objects
-    [Documentation]                             Remove noisy/high-volume platform objects + known restricted objects.
+    [Documentation]                             Filter out noisy, unsupported, and restricted Salesforce objects.
+    ...                                         Removes objects based on suffix patterns and predefined exclusion lists.
+    ...                                         Returns only valid objects suitable for COUNT() queries.
     [Arguments]                                 @{names}
     @{suffixes}=                                Create List
     ...    History
@@ -186,7 +200,9 @@ Filter Countable Objects
     RETURN                                      ${keep}
 
 Get Skip Reason
-    [Documentation]                             Classify skip reason from sf output. Prefers sf JSON "name"/"message" if present.
+    [Documentation]                             Determine skip reason based on Salesforce CLI error output.
+    ...                                         Parses JSON error payload when available for accurate classification.
+    ...                                         Falls back to string matching for known error patterns.
     [Arguments]                                 ${text}
     ${status}    ${data}=                       Run Keyword And Ignore Error                Safe Parse Sf Json                  ${text}
     IF    '${status}' == 'PASS'
@@ -227,7 +243,9 @@ Get Skip Reason
 
 
 Get Max Timeout For Object
-    [Documentation]                             Special-case timeout for known slow objects.
+    [Documentation]                             Determine maximum query timeout for a given object.
+    ...                                         Applies extended timeout for known slow objects.
+    ...                                         Returns appropriate timeout threshold for execution.
     [Arguments]                                 ${object_name}
     ${is_slow}=                                 Run Keyword And Return Status               List Should Contain Value    ${SLOW_OBJECTS}    ${object_name}
     IF    ${is_slow}
@@ -236,7 +254,9 @@ Get Max Timeout For Object
     RETURN                                      ${MAX_QUERY_TIMEOUT_SECONDS}
 
 Get Record Count Safe
-    [Documentation]                             Execute COUNT() query with timeout protection and clean parsing
+    [Documentation]                             Execute COUNT() query with timeout protection and error handling.
+    ...                                         Handles unsupported objects, timeouts, and parsing failures gracefully.
+    ...                                         Returns record count, status, and execution duration.
     [Arguments]                                 ${object_name}                              ${tooling}=${FALSE}
     ${skip_count_unsupported}=                  Run Keyword And Return Status               List Should Contain Value    ${COUNT_NOT_SUPPORTED_OBJECTS}    ${object_name}
     IF    ${skip_count_unsupported}
@@ -301,8 +321,9 @@ Get Record Count Safe
 
 
 Get Tooling Object Names
-    [Documentation]                             Returns filtered Tooling API sObject names using /tooling/sobjects.
-    ...                                         Keeps only queryable objects and removes noisy suffix patterns.
+    [Documentation]                             Retrieve queryable Tooling API object names dynamically.
+    ...                                         Filters only queryable objects and removes unsupported entries.
+    ...                                         Falls back to predefined list if discovery fails.
     ${resp}=                                    Run Sf Api Request Rest Json                /services/data/v${API_VERSION}/tooling/sobjects/
     ${has_key}=                                 Run Keyword And Return Status               Dictionary Should Contain Key    ${resp}    sobjects
     IF    not ${has_key}
@@ -335,7 +356,9 @@ Get Tooling Object Names
     RETURN                                      ${names}
 
 Log Summary All Objects
-    [Documentation]                             Print all data objects (Object: Count).
+    [Documentation]                             Log summary of all successfully processed data objects.
+    ...                                         Displays object names and corresponding record counts.
+    ...                                         Provides quick visibility into data distribution.
     [Arguments]                                 ${data_dict}
     Log To Console                              \nAll data objects (Object: Count):
     ${keys}=                                    Get Dictionary Keys                         ${data_dict}
@@ -346,7 +369,9 @@ Log Summary All Objects
     END
 
 Log Skipped Summary
-    [Documentation]                             Print skipped objects with reasons.
+    [Documentation]                             Log summary of skipped objects along with reasons.
+    ...                                         Displays classification of skipped objects.
+    ...                                         Helps identify limitations and edge cases.
     [Arguments]                                 ${skipped_reasons}
     Log To Console                              \nSkipped objects:
     ${count}=                                   Get Length                                  ${skipped_reasons}
@@ -361,6 +386,9 @@ Log Skipped Summary
     END
 
 Generate Output File Name
+    [Documentation]                             Generate timestamp-based output file name for Excel report.
+    ...                                         Ensures uniqueness and traceability of output files.
+    ...                                         Returns fully qualified output file path.
     [Arguments]                                 ${output_directory}
     ${timestamp}=                               Get Time
     ${timestamp}=                               Replace String                              ${timestamp}    :           -
@@ -368,10 +396,22 @@ Generate Output File Name
     ${output_file}=                             Set Variable                                ${output_directory}${/}${OUTPUT_FILENAME}_${timestamp}.xlsx
     RETURN                                      ${output_file}
 
+Validate Org Alias
+    [Documentation]                             Validate provided Salesforce org alias before execution.
+    ...                                         Ensures alias is not empty and properly formatted.
+    ...                                         Logs active org context for visibility.
+    ${alias}=                                   Strip String                                ${ORG_ALIAS}
+    Should Not Be Empty                         ${alias}    ORG_ALIAS is required. Pass using --variable ORG_ALIAS:<your_org>
+    Log To Console                              Running against Org: ${alias}
+
 Get All Object Record Counts
-    [Documentation]                             Main flow: list -> filter -> count -> save JSON (+ durations).
+    [Documentation]                             Orchestrate full workflow: discover, filter, count, and persist results.
+    ...                                         Processes standard and tooling objects with tracking and logging.
+    ...                                         Generates JSON artifacts and consolidated Excel report.
     [Arguments]                                 ${org_alias}
     Set Test Variable                           ${ORG_ALIAS}                                ${org_alias}
+    Validate Org Alias
+    Log                                         Using Org: ${ORG_ALIAS}
     Check Prerequisites
     ${output_directory}=                        Init Output Directory
     ${output_directory}=                        Normalize Path                              ${output_directory}
@@ -461,12 +501,18 @@ Get All Object Record Counts
     Log Summary All Objects                     ${data_results}
 
 Generate Run Id
+    [Documentation]                             Generate unique run identifier using timestamp.
+    ...                                         Used for naming output artifacts and folders.
+    ...                                         Ensures isolation across executions.
     ${timestamp}=                               Get Time
     ${timestamp}=                               Replace String    ${timestamp}    :    -
     ${timestamp}=                               Replace String    ${timestamp}    ${SPACE}    -
     RETURN                                      ${timestamp}
 
 Save Results To Excel
+    [Documentation]                             Persist results to JSON files and generate Excel report.
+    ...                                         Writes data, tooling, skipped, and duration outputs.
+    ...                                         Invokes Python utility to create structured Excel file.
     [Arguments]                                 ${output_file}                              ${data_results}                             ${tooling_results}           ${skipped_reasons}    ${durations_seconds}
     ${run_id}=                                  Generate Run Id
     ${data_file}=                               Set Variable                                ${Json_directory}${/}data_${run_id}.json
@@ -496,14 +542,16 @@ Save Results To Excel
     Should Be Equal As Integers                 ${result.rc}        0                       Excel generation failed:\n${result.stdout}\n${result.stderr}
 
 Cleanup Runtime Artifacts
-    [Documentation]                        Cleans Pabot temp files, Excel handles, and process artifacts from project root.
-    ${items}=                              List Directory                   ${EXECDIR}
+    [Documentation]                             Clean temporary runtime artifacts from execution directory.
+    ...                                         Removes Pabot files and transient execution outputs.
+    ...                                         Ensures clean workspace after execution.
+    ${items}=                                   List Directory                              ${EXECDIR}
     FOR    ${item}    IN    @{items}
-           ${full_path}=                   Set Variable                     ${EXECDIR}${/}${item}
-           ${is_uuid}=                     Evaluate                         len($item) == 32 and all(c in "0123456789abcdef" for c in $item)
-           ${is_known_temp}=               Evaluate                         $item in $TEMP_FILES
+           ${full_path}=                        Set Variable                                ${EXECDIR}${/}${item}
+           ${is_uuid}=                          Evaluate                                    len($item) == 32 and all(c in "0123456789abcdef" for c in $item)
+           ${is_known_temp}=                    Evaluate                                    $item in $TEMP_FILES
            IF    ${is_uuid} or ${is_known_temp}
-              ${is_file}=                  Run Keyword And Return Status    File Should Exist                           ${full_path}
+              ${is_file}=                       Run Keyword And Return Status               File Should Exist           ${full_path}
             IF    ${is_file}
                 Log    Removing temp file: ${item}
                 Remove File    ${full_path}
@@ -512,23 +560,28 @@ Cleanup Runtime Artifacts
     END
 
 Cleanup Suite
+    [Documentation]                             Perform suite-level cleanup after execution.
+    ...                                         Invokes runtime artifact cleanup process.
+    ...                                         Maintains clean environment post-run.
     Cleanup Runtime Artifacts
 
 Init Output Directory
-    [Documentation]                        Creates a unique, isolated output folder for the current test case/batch. This folder stores all generated files.
-    ...                                    for that specific run, ensuring traceability and no collisions in parallel execution.
-    ${uuid}=                               Evaluate                         __import__('uuid').uuid4().hex
-    ${run_id}=                             Generate Run Id
-    ${safe_test_name}=                     Catenate                         SEPARATOR=                   ${RUN NAME}        ${run_id}
-    ${output_directory}=                   Set Variable                     ${OUTPUT_DIR}${/}${safe_test_name}_${uuid}
-    Create Directory                       ${output_directory}
-    Directory Should Exist                 ${output_directory}
-    RETURN                                 ${output_directory}
+    [Documentation]                             Initialize unique output directory for current execution.
+    ...                                         Creates isolated folder using timestamp and UUID.
+    ...                                         Ensures no conflicts in parallel runs.
+    ${uuid}=                                    Evaluate                                    __import__('uuid').uuid4().hex
+    ${run_id}=                                  Generate Run Id
+    ${safe_test_name}=                          Catenate                                    SEPARATOR=                  ${RUN NAME}        ${run_id}
+    ${output_directory}=                        Set Variable                                ${OUTPUT_DIR}${/}${safe_test_name}_${uuid}
+    Create Directory                            ${output_directory}
+    Directory Should Exist                      ${output_directory}
+    RETURN                                      ${output_directory}
 
 Init Json Directory
-    [Documentation]                        Creates a unique, isolated Jason folder for the current test case/batch. This folder stores all generated jason files.
-    ...                                    for that specific run, ensuring traceability and no collisions in parallel execution.
-    ${Json_directory}=                     Set Variable                     ${output_directory}${/}Json_Files
-    Create Directory                       ${Json_directory}
-    Directory Should Exist                 ${Json_directory}
-    RETURN                                 ${Json_directory}
+    [Documentation]                             Initialize JSON output directory within execution folder.
+    ...                                         Creates dedicated folder for JSON artifacts.
+    ...                                         Ensures structured storage of intermediate outputs.
+    ${Json_directory}=                          Set Variable                                ${output_directory}${/}Json_Files
+    Create Directory                            ${Json_directory}
+    Directory Should Exist                      ${Json_directory}
+    RETURN                                      ${Json_directory}

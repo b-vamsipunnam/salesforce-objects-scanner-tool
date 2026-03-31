@@ -1,11 +1,8 @@
 # Salesforce Objects Scanner
 
-**Quickly understand your Salesforce org’s data footprint.**
+> Enterprise-grade Salesforce data analysis tool built with Robot Framework and Python.  
+> Supports scanning all queryable sObjects, retrieving accurate record counts, identifying Large Data Volume (LDV) risk areas, and generating structured Excel reports. Used in enterprise environments for data volume analysis, migration planning, and storage optimization across large-scale Salesforce orgs.
 
-Scan all queryable sObjects, get accurate record counts, identify Large Data Volume (LDV) risks, and generate ready-to-analyze Excel reports — all with safe, timeout-protected execution.
-
-> Enterprise-grade Salesforce org analysis tool for data visibility, LDV detection, and migration planning.
-> Designed to handle Salesforce orgs with hundreds to thousands of objects while maintaining predictable execution and structured outputs.
 ---
 
 ## Built With
@@ -27,6 +24,8 @@ The Salesforce Objects Scanner is an automation-driven framework that analyzes y
 Built using **Robot Framework + Salesforce CLI**, the tool provides a structured and reliable way to assess org size, identify large objects (LDV risks), and support migration planning.
 
 Native Salesforce tools offer limited visibility into object-level data size and lack a unified way to analyze all sObjects. This tool addresses those gaps by delivering comprehensive, structured reporting across your entire org.
+
+Used by SDETs, Salesforce architects, and migration teams for large-scale Salesforce org analysis.
 
 ---
 
@@ -55,6 +54,8 @@ Native Salesforce tools have limitations:
 
 ## Key Features
 
+- Designed for safe execution in large orgs without hitting long-running query risks
+- LDV (Large Data Volume) detection-ready outputs for identifying high-volume objects
 - Scans all queryable objects using `sf sobject list --json`
 - Executes `SELECT COUNT()` queries across standard and Tooling API objects
 - Smart filtering of noisy and unsupported objects
@@ -67,11 +68,14 @@ Native Salesforce tools have limitations:
   - INVALID_TYPE / restricted objects  
 - Per-object execution time tracking
 - Generates structured JSON outputs and Excel report
+- Excel report structured for LDV analysis (easy sorting, filtering, pivoting)
 - Clear execution summary with success and skip metrics
 ---
 
 ## Architecture Overview
 
+Supports large-scale Salesforce orgs with hundreds to thousands of objects, ensuring predictable and observable execution behavior.
+    
 **Execution model:**
 
 - **Control Layer:** Salesforce CLI (metadata + queries)  
@@ -79,19 +83,19 @@ Native Salesforce tools have limitations:
 - **Execution Layer:** Process-based execution with timeout protection  
 - **Output Layer:** JSON artifacts + Excel report  
 
-This design ensures predictable, scalable, and observable execution. 
+This design ensures predictable, scalable, and observable execution across large Salesforce orgs. 
 Each execution creates an isolated run folder to ensure clean, reproducible outputs.
 
 <p align="center">
-  <img src="docs/architecture.png" width="700">
+  <img src="docs/architecture.png" width="700" alt="Salesforce Objects Scanner architecture diagram">
 </p>
 
 ## Technology Stack
 
-- Robot Framework  
-- Salesforce CLI (sf)  
-- Python  
-- Custom ExcelWriter utility  
+- **Robot Framework** – Serves as the orchestration layer, enabling keyword-driven automation to structure the scanning workflow, manage execution flow, and keep the solution readable and maintainable
+- **Salesforce CLI (sf)** – Acts as the control interface to Salesforce, handling authentication and executing SOQL queries such as SELECT COUNT() to retrieve object-level record counts
+- **Python** – Provides the extensibility layer for building custom utilities, handling JSON parsing, processing results, and enhancing overall automation capabilities
+- **ExcelWriter utility** – Custom-built reporting component that transforms raw scan results into structured Excel reports, making it easy to analyze object distribution and identify LDV (Large Data Volume) risk areas
 
 ---
 
@@ -99,8 +103,11 @@ Each execution creates an isolated run folder to ensure clean, reproducible outp
 
 ### Prerequisites
 - Python 3.8+
+- Node.js (required for Salesforce CLI)
 - Salesforce CLI (`sf`)
 - Robot Framework and dependencies
+
+> Salesforce CLI requires Node.js as a runtime dependency.
 
 ### Installation
 
@@ -126,17 +133,11 @@ pip install -r requirements.txt
    ```bash
    sf org login web --alias MyOrg
    ```
-2. Configure org alias
-   Before running, update the ${ORG_ALIAS} variable in: `src/robot/orchestrator/scan.robot`
-   ```robot
-   *** Variables ***
-   ${ORG_ALIAS}    MyOrg
-   ```
-4. Run:
+2. Run the scanner by passing the org alias:
    ```bash
-   robot --test Object_Scanner -d results src/robot/orchestrator/scan.robot
+   robot --test Object_Scanner -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
    ```
-5. Check outputs:
+3. Check outputs:
    ```text
    JSON files     : output/
    Excel report   : output/SF_Objects_<datetime>.xlsx
@@ -185,13 +186,24 @@ salesforce-objects-scanner/
 
 ## Configuration
 
-| Variable                       | Default Value | Description                          |
-|--------------------------------|---------------|--------------------------------------|
-| `${ORG_ALIAS}`                 | MyOrg         | Target org alias                     |
-| `${INCLUDE_TOOLING}`           | ${TRUE}       | Include Tooling API objects          |
-| `${DISCOVER_TOOLING_OBJECTS}`  | ${TRUE}       | Dynamically discover Tooling objects |
-| `${DELAY_SECONDS}`             | 0.1           | Delay between queries                |
-| `${MAX_QUERY_TIMEOUT_SECONDS}` | 120           | Per-query timeout                    |
+| Variable                       | Required | Default Value | Description                                      |
+|--------------------------------|----------|---------------|--------------------------------------------------|
+| `${ORG_ALIAS}`                 | Yes      | —             | Salesforce org alias (passed via CLI)            |
+| `${INCLUDE_TOOLING}`           | No       | ${TRUE}       | Include Tooling API objects                      |
+| `${DISCOVER_TOOLING_OBJECTS}`  | No       | ${TRUE}       | Dynamically discover Tooling objects             |
+| `${DELAY_SECONDS}`             | No       | 0.1           | Delay between queries                            |
+| `${MAX_QUERY_TIMEOUT_SECONDS}` | No       | 120           | Per-query timeout (in seconds)                   |
+
+#### `${ORG_ALIAS}` must be provided at runtime:
+
+ ```bash
+ --variable ORG_ALIAS:<your_org>
+ ```
+#### Example:
+
+ ```bash
+ robot --test Object_Scanner -d results --variable ORG_ALIAS:DeveloperOrg src/robot/orchestrator/scan.robot
+ ```
 
 ---
 
@@ -208,9 +220,11 @@ salesforce-objects-scanner/
 
 ### Excel Report
 
-| File                          | Purpose                              |
-|-------------------------------|--------------------------------------|
-| `SF_Objects_<datetime>.xlsx`  | Consolidated report for analysis     |
+| File                          | Purpose                                                                           |
+|-------------------------------|-----------------------------------------------------------------------------------|
+| `SF_Objects_<datetime>.xlsx`  | Consolidated report with record counts, execution times, and LDV analysis support |
+
+> Sort Excel by record count to quickly identify top LDV objects.
 
 ---
 
@@ -241,16 +255,18 @@ Skipped: 22
 * Skipped objects are classified and logged with clear reasons
 * Execution time is tracked per object
 * Results are stored in structured JSON and Excel formats
+* Validates ORG_ALIAS at runtime and fails fast if not provided
 
 ---
 
 ## Limitations & Trade-offs
 
-* COUNT() queries may be slow for large datasets
+* COUNT() queries may be slow for very large datasets (millions of records)
 * Some objects require WHERE clauses and are skipped
 * Dependent on Salesforce CLI output format
-* Currently optimized for Windows environments
-* Very large orgs may take 10–30+ minutes depending on size and network conditions
+* Subject to Salesforce governor limits, query timeouts, and API request limits
+* Certain objects (e.g., EventLogFile, Big Objects) may have special behaviors
+* Very large orgs may take 30-50+ minutes depending on size and network conditions
 
 ---
 
@@ -261,16 +277,24 @@ Skipped: 22
 
 ---
 
+## Performance Tips
+
+- Run during off-peak hours for large orgs  
+- Use a sandbox for initial analysis  
+- Increase `${MAX_QUERY_TIMEOUT_SECONDS}` for very large objects  
+- Reduce `${DELAY_SECONDS}` carefully to balance speed vs stability  
+
+---
+
 ## Roadmap
 
 Planned enhancements:
-* Parallel execution (Pabot integration)
+* Parallel execution (Pabot integration for large org performance)
 * Resume capability for long scans
 * Cross-platform support improvements
 * Advanced analytics (top objects, trends)
 
 ---
-
 
 ## Troubleshooting
 
