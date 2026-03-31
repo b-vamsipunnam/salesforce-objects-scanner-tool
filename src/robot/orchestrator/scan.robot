@@ -1,12 +1,8 @@
 *** Settings ***
-Documentation                                   Retrieve and log record counts for Salesforce objects from Excel list
+Documentation                                   Retrieve and log record counts for all queryable Salesforce objects using Salesforce CLI (sf), with filtering, timeout protection, and structured output generation.
 Resource                                        ../resources/keywords.robot
 Suite Teardown                                  Cleanup Suite
 
-*** Variables ***
-# Set this to the same alias used in: sf org login web --alias <org_name>
-${ORG_ALIAS}                                    MyOrg
-
 *** Test Cases ***
 Object_Scanner
-    Get All Object Record Counts                ${ORG_ALIAS}
+    Get All Object Record Counts1                ${ORG_ALIAS}
