@@ -5,4 +5,4 @@ Suite Teardown                                  Cleanup Suite
 
 *** Test Cases ***
 Object_Scanner
-    Get All Object Record Counts1                ${ORG_ALIAS}
+    Get All Object Record Counts                ${ORG_ALIAS}

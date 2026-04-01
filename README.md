@@ -135,7 +135,7 @@ pip install -r requirements.txt
    ```
 2. Run the scanner by passing the org alias:
    ```bash
-   robot --test Object_Scanner -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
+   robot -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
    ```
 3. Check outputs:
    ```text
@@ -202,7 +202,7 @@ salesforce-objects-scanner/
 #### Example:
 
  ```bash
- robot --test Object_Scanner -d results --variable ORG_ALIAS:DeveloperOrg src/robot/orchestrator/scan.robot
+ robot -d results --variable ORG_ALIAS:DeveloperOrg src/robot/orchestrator/scan.robot
  ```
 
 ---
