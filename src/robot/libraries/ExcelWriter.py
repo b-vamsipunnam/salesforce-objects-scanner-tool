@@ -3,6 +3,7 @@ import json
 import os
 from openpyxl import Workbook
 from openpyxl.styles import Font
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 
 def write_headers(sheet, headers):
@@ -19,7 +20,23 @@ def autosize(sheet):
         for cell in column:
             if cell.value:
                 max_length = max(max_length, len(str(cell.value)))
-        sheet.column_dimensions[column_letter].width = max_length + 4
+        sheet.column_dimensions[column_letter].width = min(max_length + 4, 80)
+
+
+def format_sheet(sheet):
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    if sheet.max_row > 1:
+        table_name = "".join(character for character in sheet.title if character.isalnum())
+        table = Table(displayName=f"{table_name}Table", ref=sheet.dimensions)
+        table.tableStyleInfo = TableStyleInfo(
+            name="TableStyleMedium2",
+            showFirstColumn=False,
+            showLastColumn=False,
+            showRowStripes=True,
+            showColumnStripes=False,
+        )
+        sheet.add_table(table)
 
 
 def load_json(path):
@@ -40,6 +57,14 @@ def main():
     skipped_reasons = load_json(sys.argv[3])
     durations_seconds = load_json(sys.argv[4])
     output_file = sys.argv[5]
+    for name, value in (
+        ("data results", data_results),
+        ("tooling results", tooling_results),
+        ("skipped reasons", skipped_reasons),
+        ("durations", durations_seconds),
+    ):
+        if not isinstance(value, dict):
+            raise ValueError(f"Expected {name} to be a JSON object.")
 
     # Ensure output directory exists
     output_dir = os.path.dirname(output_file)
@@ -76,6 +101,7 @@ def main():
         duration_sheet.cell(row=row, column=2).value = v
 
     for sheet in wb.worksheets:
+        format_sheet(sheet)
         autosize(sheet)
 
     wb.save(output_file)

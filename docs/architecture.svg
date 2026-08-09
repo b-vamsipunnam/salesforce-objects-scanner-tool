@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1440" viewBox="0 0 1200 1440" role="img" aria-labelledby="title description">
+  <title id="title">Parallel Salesforce Object Count Scanner architecture</title>
+  <desc id="description">A top-to-bottom workflow showing Salesforce CLI authentication, standard and Tooling object discovery, balanced Pabot suites, isolated count queries, atomic result artifacts, consolidated reports, and a final scan quality gate.</desc>
+
+  <defs>
+    <style>
+      .title { font: 700 32px "Segoe UI", Arial, sans-serif; fill: #10243e; }
+      .subtitle { font: 16px "Segoe UI", Arial, sans-serif; fill: #52657a; }
+      .section { font: 700 14px "Segoe UI", Arial, sans-serif; fill: #64748b; letter-spacing: 1.8px; }
+      .heading { font: 700 21px "Segoe UI", Arial, sans-serif; fill: #10243e; }
+      .body { font: 16px "Segoe UI", Arial, sans-serif; fill: #2f4358; }
+      .small { font: 14px "Segoe UI", Arial, sans-serif; fill: #52657a; }
+      .worker-title { font: 700 16px "Segoe UI", Arial, sans-serif; fill: #5f3505; }
+      .worker-body { font: 14px "Segoe UI", Arial, sans-serif; fill: #6b4b22; }
+      .output-title { font: 700 18px "Segoe UI", Arial, sans-serif; fill: #14532d; }
+      .output-body { font: 14px "Segoe UI", Arial, sans-serif; fill: #365b45; }
+      .panel { fill: #ffffff; stroke: #dbe4ee; stroke-width: 1.5; }
+      .box { stroke: #60758b; stroke-width: 1.75; }
+      .salesforce-box { fill: #edf5ff; stroke: #2f6f9f; stroke-width: 2; }
+      .pabot-panel { fill: #fff8ef; stroke: #ff9900; stroke-width: 3; }
+      .worker-box { fill: #ffffff; stroke: #d88a18; stroke-width: 1.75; }
+      .artifact-box { fill: #fffdf7; stroke: #a9550a; stroke-width: 2; }
+      .validation-box { fill: #edf9f2; stroke: #2f855a; stroke-width: 2.25; }
+      .output-box { fill: #f1faf5; stroke: #3f8f66; stroke-width: 1.8; }
+      .flow { fill: none; stroke: #60758b; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .fanout-connector { fill: none; stroke: #a9550a; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .fanout { fill: none; stroke: #a9550a; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow-orange); }
+      .artifact-connector { fill: none; stroke: #2f855a; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .artifact-flow { fill: none; stroke: #2f855a; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow-green); }
+    </style>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#243b53" flood-opacity="0.10"/>
+    </filter>
+    <linearGradient id="page-background" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#f3f6f9"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L8 5 L0 10 Z" fill="#60758b"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L8 5 L0 10 Z" fill="#a9550a"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L8 5 L0 10 Z" fill="#2f855a"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="1440" fill="url(#page-background)"/>
+  <text x="600" y="48" text-anchor="middle" class="title">Parallel Salesforce Object Count Scanner</text>
+  <text x="600" y="76" text-anchor="middle" class="subtitle">Discover once, query independently, validate every result, and consolidate the report</text>
+  <rect x="520" y="90" width="160" height="4" rx="2" fill="#2f6f9f"/>
+
+  <!-- Runtime context -->
+  <rect x="45" y="105" width="1110" height="130" rx="18" class="panel" filter="url(#shadow)"/>
+  <text x="70" y="136" class="section">RUNTIME CONTEXT</text>
+
+  <rect x="70" y="158" width="335" height="55" rx="11" class="box" fill="#edf5ff"/>
+  <text x="237" y="181" text-anchor="middle" class="heading">Salesforce CLI</text>
+  <text x="237" y="202" text-anchor="middle" class="small">Authenticated org session and API access</text>
+
+  <rect x="440" y="158" width="335" height="55" rx="11" class="box" fill="#f7f9fc"/>
+  <text x="607" y="181" text-anchor="middle" class="heading">Robot Framework</text>
+  <text x="607" y="202" text-anchor="middle" class="small">Discovery, orchestration, and reporting</text>
+
+  <rect x="810" y="158" width="335" height="55" rx="11" class="box" fill="#fff8ef"/>
+  <text x="977" y="181" text-anchor="middle" class="heading">Pabot</text>
+  <text x="977" y="202" text-anchor="middle" class="small">Configurable parallel worker pool</text>
+
+  <!-- Primary setup workflow -->
+  <text x="70" y="272" class="section">DISCOVERY &amp; WORK PLANNING</text>
+  <line x1="315" y1="267" x2="1130" y2="267" stroke="#dbe4ee" stroke-width="1.5"/>
+  <rect x="588" y="282" width="24" height="456" rx="12" fill="#e8eef5"/>
+
+  <rect x="350" y="292" width="500" height="88" rx="15" class="salesforce-box" filter="url(#shadow)"/>
+  <text x="600" y="321" text-anchor="middle" class="heading">Validate Org &amp; Runtime</text>
+  <text x="600" y="347" text-anchor="middle" class="body">Resolve sf and Python executables</text>
+  <text x="600" y="369" text-anchor="middle" class="small">Verify alias, session, and Salesforce API version</text>
+
+  <path d="M600 380 V401" class="flow"/>
+
+  <rect x="350" y="406" width="500" height="96" rx="15" class="salesforce-box" filter="url(#shadow)"/>
+  <text x="600" y="435" text-anchor="middle" class="heading">Discover Salesforce Objects</text>
+  <text x="600" y="462" text-anchor="middle" class="body">Standard and custom objects via sf CLI</text>
+  <text x="600" y="486" text-anchor="middle" class="small">Live Tooling discovery only · failures are reported, never substituted</text>
+
+  <path d="M600 502 V523" class="flow"/>
+
+  <rect x="350" y="528" width="500" height="96" rx="15" class="salesforce-box" filter="url(#shadow)"/>
+  <text x="600" y="557" text-anchor="middle" class="heading">Build Deterministic Work List</text>
+  <text x="600" y="584" text-anchor="middle" class="body">Deduplicate names while preserving coverage</text>
+  <text x="600" y="608" text-anchor="middle" class="small">Keep standard and Tooling identities separate</text>
+
+  <path d="M600 624 V645" class="flow"/>
+
+  <rect x="350" y="650" width="500" height="88" rx="15" class="salesforce-box" filter="url(#shadow)"/>
+  <text x="600" y="679" text-anchor="middle" class="heading">Generate Balanced Pabot Suites</text>
+  <text x="600" y="705" text-anchor="middle" class="body">Object batches reuse Robot worker processes</text>
+  <text x="600" y="727" text-anchor="middle" class="small">Deterministic Data and Tooling artifact paths</text>
+
+  <path d="M600 738 V765" class="fanout"/>
+
+  <!-- Parallel worker layer -->
+  <rect x="45" y="770" width="1110" height="295" rx="20" class="pabot-panel" filter="url(#shadow)"/>
+  <text x="70" y="802" class="section" fill="#8a4b08">PARALLEL EXECUTION &#183; PABOT_PROCESSES</text>
+  <text x="1130" y="802" text-anchor="end" class="small">Suite-level batches across configurable workers</text>
+
+  <path d="M600 770 V826 M190 826 H1015" class="fanout-connector"/>
+  <path d="M190 826 V845" class="fanout"/>
+  <path d="M465 826 V845" class="fanout"/>
+  <path d="M740 826 V845" class="fanout"/>
+  <path d="M1015 826 V845" class="fanout"/>
+
+  <rect x="75" y="850" width="230" height="115" rx="14" class="worker-box"/>
+  <text x="190" y="880" text-anchor="middle" class="worker-title">Worker 1</text>
+  <text x="190" y="908" text-anchor="middle" class="worker-body">SELECT COUNT()</text>
+  <text x="190" y="932" text-anchor="middle" class="worker-body">Balanced object batch</text>
+  <text x="190" y="953" text-anchor="middle" class="small">Success or skip reason</text>
+
+  <rect x="350" y="850" width="230" height="115" rx="14" class="worker-box"/>
+  <text x="465" y="880" text-anchor="middle" class="worker-title">Worker 2</text>
+  <text x="465" y="908" text-anchor="middle" class="worker-body">SELECT COUNT()</text>
+  <text x="465" y="932" text-anchor="middle" class="worker-body">Balanced object batch</text>
+  <text x="465" y="953" text-anchor="middle" class="small">Success or skip reason</text>
+
+  <rect x="625" y="850" width="230" height="115" rx="14" class="worker-box"/>
+  <text x="740" y="880" text-anchor="middle" class="worker-title">Worker 3</text>
+  <text x="740" y="908" text-anchor="middle" class="worker-body">SELECT COUNT()</text>
+  <text x="740" y="932" text-anchor="middle" class="worker-body">Balanced object batch</text>
+  <text x="740" y="953" text-anchor="middle" class="small">Success or skip reason</text>
+
+  <rect x="900" y="850" width="230" height="115" rx="14" class="worker-box"/>
+  <text x="1015" y="880" text-anchor="middle" class="worker-title">Worker N</text>
+  <text x="1015" y="908" text-anchor="middle" class="worker-body">SELECT COUNT()</text>
+  <text x="1015" y="932" text-anchor="middle" class="worker-body">Balanced object batch</text>
+  <text x="1015" y="953" text-anchor="middle" class="small">Success or skip reason</text>
+
+  <path d="M190 965 V980 M465 965 V980 M740 965 V980 M1015 965 V980 M190 980 H1015" class="artifact-connector"/>
+  <path d="M600 980 V1000" class="artifact-flow"/>
+
+  <rect x="350" y="1005" width="500" height="45" rx="11" class="artifact-box"/>
+  <text x="600" y="1033" text-anchor="middle" class="body">Atomic JSON artifact &#183; count &#183; status &#183; duration</text>
+
+  <path d="M600 1050 V1115" class="artifact-flow"/>
+
+  <!-- Consolidation and outputs -->
+  <text x="70" y="1105" class="section">VALIDATION &amp; REPORTING</text>
+  <line x1="285" y1="1100" x2="570" y2="1100" stroke="#dbe4ee" stroke-width="1.5"/>
+  <line x1="630" y1="1100" x2="1130" y2="1100" stroke="#dbe4ee" stroke-width="1.5"/>
+
+  <rect x="350" y="1120" width="500" height="86" rx="15" class="validation-box" filter="url(#shadow)"/>
+  <text x="600" y="1149" text-anchor="middle" class="heading">Validate &amp; Consolidate Artifacts</text>
+  <text x="600" y="1175" text-anchor="middle" class="body">Every scheduled identity must have exactly one artifact</text>
+  <text x="600" y="1197" text-anchor="middle" class="small">Separate data, Tooling, skipped, and duration dictionaries</text>
+
+  <path d="M600 1206 V1230 M210 1230 H990" class="artifact-connector"/>
+  <path d="M210 1230 V1245" class="artifact-flow"/>
+  <path d="M600 1230 V1245" class="artifact-flow"/>
+  <path d="M990 1230 V1245" class="artifact-flow"/>
+
+  <rect x="65" y="1250" width="290" height="58" rx="13" class="output-box"/>
+  <text x="210" y="1275" text-anchor="middle" class="output-title">Structured JSON</text>
+  <text x="210" y="1297" text-anchor="middle" class="output-body">Data &#183; Tooling &#183; skips &#183; durations</text>
+
+  <rect x="455" y="1250" width="290" height="58" rx="13" class="output-box"/>
+  <text x="600" y="1275" text-anchor="middle" class="output-title">Excel Workbook</text>
+  <text x="600" y="1297" text-anchor="middle" class="output-body">Filterable sheets for analysis</text>
+
+  <rect x="845" y="1250" width="290" height="58" rx="13" class="output-box"/>
+  <text x="990" y="1275" text-anchor="middle" class="output-title">Robot &amp; Pabot Reports</text>
+  <text x="990" y="1297" text-anchor="middle" class="output-body">Traceable run and worker logs</text>
+
+  <path d="M210 1308 V1330 M600 1308 V1330 M990 1308 V1330 M210 1330 H990" class="artifact-connector"/>
+  <path d="M600 1330 V1350" class="artifact-flow"/>
+
+  <rect x="350" y="1355" width="500" height="60" rx="15" class="validation-box" filter="url(#shadow)"/>
+  <text x="600" y="1381" text-anchor="middle" class="heading">Apply Scan Quality Gate</text>
+  <text x="600" y="1405" text-anchor="middle" class="small">Pass complete runs · fail incomplete runs after reports are saved</text>
+</svg>

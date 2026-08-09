@@ -1,130 +1,133 @@
 *** Settings ***
-Documentation     Smoke tests for salesforce-objects-scanner. Fast CI-safe checks (no real Salesforce connection)
-Library           OperatingSystem
+Documentation     CI-safe tests of the production Robot Framework keywords.
 Library           Collections
-Library           BuiltIn
-Library           String
+Library           OperatingSystem
 Resource          ../../src/robot/resources/keywords.robot
+Suite Teardown    Cleanup Smoke Artifacts
 
-*** Keywords ***
-Is Windows
-    ${os}=    Evaluate    __import__("os").name
-    RETURN    ${os} == "nt"
-
-Build Sf Command
-    [Documentation]    Builds cross-platform sf command list
-    [Arguments]    @{sf_args}
-
-    ${is_win}=    Is Windows
-    IF    ${is_win}
-        @{cmd}=    Create List    cmd.exe    /c    ${SF_CLI}
-    ELSE
-        @{cmd}=    Create List    ${SF_CLI}
-    END
-
-    FOR    ${arg}    IN    @{sf_args}
-        Append To List    ${cmd}    ${arg}
-    END
-
-    RETURN    ${cmd}
-
-Get Skip Reason
-    [Arguments]    ${error}
-    ${is_dict}=    Run Keyword And Return Status    Dictionary Should Contain Key    ${error}    name
-    IF    ${is_dict}
-        ${name}=    Get From Dictionary    ${error}    name
-    ELSE
-        ${parsed}=    Run Keyword And Return Status
-        ...    Evaluate    __import__("json").loads($error)
-        IF    ${parsed}
-            ${error}=    Evaluate    __import__("json").loads($error)
-            ${name}=     Get From Dictionary    ${error}    name    default=${EMPTY}
-        ELSE
-            ${name}=    Set Variable    ${error}
-        END
-    END
-    IF    '${name}' == 'INVALID_TYPE_FOR_OPERATION'
-        RETURN    COUNT_NOT_SUPPORTED
-    END
-    RETURN    ${name}
-
-Filter Countable Objects
-    [Arguments]    @{objects}
-    @{filtered}=    Create List
-    FOR    ${obj}    IN    @{objects}
-        ${is_history}=    Run Keyword And Return Status    Should End With    ${obj}    History
-        ${is_feed}=       Run Keyword And Return Status    Should End With    ${obj}    Feed
-        ${is_encryption}=   Run Keyword And Return Status    Should Be Equal    ${obj}    DataEncryptionKey
-        ${is_apex}=       Run Keyword And Return Status    Should Be Equal    ${obj}    ApexClass
-        IF    not ${is_history} and not ${is_feed} and not ${is_encryption} and not ${is_apex}
-            Append To List    ${filtered}    ${obj}
-        END
-    END
-    RETURN    ${filtered}
 
 *** Test Cases ***
 Smoke - Resource Loads
-    Should Not Be Empty    ${SF_CLI}
-    Should Be Equal        ${SF_CLI}    sf
+    Should Be Equal    ${SF_CLI}    sf
 
-Smoke - Build Sf Command Cross Platform
-    @{cmd}=    Build Sf Command    --version
-    ${is_win}=    Is Windows
-    IF    ${is_win}
-        Should Be Equal    ${cmd}[0]    cmd.exe
-        Should Be Equal    ${cmd}[1]    /c
-        Should Be Equal    ${cmd}[2]    sf
-    ELSE
-        Should Be Equal    ${cmd}[0]    sf
-    END
-
-Smoke - Safe Parse Sf Json With Warning Prefix
+Smoke - Safe Parse Sf Json With Noisy Output
     ${fake_output}=    Catenate    SEPARATOR=\n
-    ...    Warning: update available
-    ...    {
-    ...      "status": 0,
-    ...      "result": ["Account", "Contact"]
-    ...    }
+    ...    Warning {not-json}: update available
+    ...    {"status": 0, "result": ["Account", "Contact"]}
+    ...    trailing diagnostic
     ${parsed}=    Safe Parse Sf Json    ${fake_output}
     Should Be Equal As Integers    ${parsed}[status]    0
     Length Should Be               ${parsed}[result]    2
-    List Should Contain Value      ${parsed}[result]    Account
 
-Smoke - Get Skip Reason - JSON Error
-    ${error_json}=    Set Variable    {"name": "INVALID_TYPE_FOR_OPERATION", "message": "Count not supported"}
+Smoke - Get Skip Reason From JSON Error
+    ${error_json}=    Set Variable    {"name":"INVALID_TYPE_FOR_OPERATION","message":"Count operation not supported"}
     ${reason}=        Get Skip Reason    ${error_json}
     Should Be Equal   ${reason}    COUNT_NOT_SUPPORTED
 
-Smoke - Filter Countable Objects
+Smoke - Filter Preserves Queryable Suffixes And Deduplicates
     @{objects}=    Create List
     ...    Account
     ...    AccountHistory
     ...    AccountFeed
     ...    CustomObject__c
-    ...    DataEncryptionKey
-    ...    ApexClass
+    ...    Account
     @{filtered}=    Filter Countable Objects    @{objects}
-    List Should Not Contain Value    ${filtered}    AccountHistory
-    List Should Not Contain Value    ${filtered}    AccountFeed
-    List Should Not Contain Value    ${filtered}    DataEncryptionKey
+    List Should Contain Value        ${filtered}    AccountHistory
+    List Should Contain Value        ${filtered}    AccountFeed
     List Should Contain Value        ${filtered}    Account
-    List Should Contain Value        ${filtered}    CustomObject__c
+    Length Should Be                 ${filtered}    4
 
-Smoke - JSON Structure Generation
-    &{mock_results}=      Create Dictionary    Account=100    Contact=50
-    &{mock_durations}=    Create Dictionary    Account=1.2    Contact=0.8
-    ${generated_at}=      Evaluate    __import__("datetime").datetime.utcnow().isoformat()
-    &{payload}=    Create Dictionary
-    ...    org_alias=TestOrg
-    ...    generated_at=${generated_at}
-    ...    data_objects=${mock_results}
-    ...    durations_seconds=${mock_durations}
-    ${json}=    Evaluate    __import__("json").dumps($payload)
-    Should Contain    ${json}    "Account"
-    Should Contain    ${json}    "generated_at"
+Smoke - Unsupported Object Is Classified At Runtime
+    ${error_json}=    Set Variable
+    ...    {"name":"INVALID_TYPE","message":"sObject type 'AggregateResult' is not supported"}
+    ${reason}=    Get Skip Reason    ${error_json}
+    Should Be Equal    ${reason}    INVALID_TYPE
 
-Smoke - Critical Keywords Callable
-    Run Keyword    Build Sf Command    --version
-    Run Keyword    Safe Parse Sf Json    {"status":0}
-    Run Keyword    Get Skip Reason    INVALID_TYPE_FOR_OPERATION
-    Run Keyword    Filter Countable Objects    Account    Contact
+Smoke - Required Where Is Classified At Runtime
+    ${error_json}=    Set Variable
+    ...    {"name":"MALFORMED_QUERY","message":"Where clauses should contain StatType"}
+    ${reason}=    Get Skip Reason    ${error_json}
+    Should Be Equal    ${reason}    REQUIRES_WHERE_StatType
+
+Smoke - Missing Alias Has Actionable Validation
+    ${status}    ${message}=    Run Keyword And Ignore Error    Validate Org Alias
+    Should Be Equal    ${status}    FAIL
+    Should Contain    ${message}    ORG_ALIAS is required
+
+Smoke - Process Output Is Never Shared Through PIPE
+    ${salesforce_resource}=    Get File    ${CURDIR}${/}..${/}..${/}src${/}robot${/}resources${/}salesforce.resource
+    ${parallel_resource}=    Get File
+    ...    ${CURDIR}${/}..${/}..${/}src${/}robot${/}resources${/}parallel_execution.resource
+    ${reporting_resource}=    Get File    ${CURDIR}${/}..${/}..${/}src${/}robot${/}resources${/}reporting.resource
+    Should Not Contain    ${salesforce_resource}    stdout=PIPE
+    Should Not Contain    ${salesforce_resource}    stderr=PIPE
+    Should Not Contain    ${parallel_resource}    stdout=PIPE
+    Should Not Contain    ${parallel_resource}    stderr=PIPE
+    Should Not Contain    ${reporting_resource}    stdout=PIPE
+    Should Not Contain    ${reporting_resource}    stderr=PIPE
+
+Smoke - Operational Failure Fails Quality Gate
+    &{skipped}=    Create Dictionary    Account=INVALID_JSON_OUTPUT
+    ${status}    ${message}=    Run Keyword And Ignore Error    Validate Scan Quality    ${skipped}
+    Should Be Equal    ${status}    FAIL
+    Should Contain    ${message}    operational failures
+
+Smoke - Unknown Error Becomes Operational Failure
+    ${error_json}=    Set Variable    {"name":"NEW_SALESFORCE_ERROR","message":"unexpected"}
+    ${reason}=    Get Skip Reason    ${error_json}
+    Should Be Equal    ${reason}    OTHER_ERROR
+    &{skipped}=    Create Dictionary    Account=${reason}
+    ${status}    ${message}=    Run Keyword And Ignore Error    Validate Scan Quality    ${skipped}
+    Should Be Equal    ${status}    FAIL
+    Should Contain    ${message}    OTHER_ERROR
+
+Smoke - Expected Skip Passes Quality Gate
+    &{skipped}=    Create Dictionary    AggregateResult=INVALID_TYPE
+    Validate Scan Quality    ${skipped}
+
+Smoke - Best Effort Mode Allows Operational Failure
+    &{skipped}=    Create Dictionary    Account=TIMEOUT
+    Validate Scan Quality    ${skipped}    fail_on_errors=${FALSE}
+
+Smoke - Command Line Values Are Normalized
+    ${include}    ${fail_on_errors}    ${processes}    ${shards}=
+    ...    Normalize Scanner Configuration    false    FALSE    8    3
+    Should Be Equal    ${include}    ${FALSE}
+    Should Be Equal    ${fail_on_errors}    ${FALSE}
+    Should Be Equal As Integers    ${processes}    8
+    Should Be Equal As Integers    ${shards}    3
+
+Smoke - Invalid Successful Artifact Is Rejected
+    ${artifact_directory}=    Set Variable    ${OUTPUT DIR}${/}schema-artifacts
+    Create Directory    ${artifact_directory}
+    ${artifact}=    Set Variable    ${artifact_directory}${/}data__Account.json
+    Create File
+    ...    ${artifact}
+    ...    {"object_name":"Account","tooling":false,"count":null,"reason":"OK","duration":1}
+    ${status}    ${message}=    Run Keyword And Ignore Error
+    ...    Read Query Artifact
+    ...    ${artifact_directory}
+    ...    Account
+    ...    ${FALSE}
+    Should Be Equal    ${status}    FAIL
+    Should Contain    ${message}    integer
+
+Smoke - Missing Artifact Is Rejected
+    ${artifact_directory}=    Set Variable    ${OUTPUT DIR}${/}missing-artifacts
+    Create Directory    ${artifact_directory}
+    @{data_objects}=    Create List    Account
+    @{tooling_objects}=    Create List
+    ${status}    ${message}=    Run Keyword And Ignore Error
+    ...    Load Query Artifacts
+    ...    ${artifact_directory}
+    ...    ${data_objects}
+    ...    ${tooling_objects}
+    Should Be Equal    ${status}    FAIL
+    Should Contain    ${message}    result count
+
+
+*** Keywords ***
+Cleanup Smoke Artifacts
+    [Documentation]    Remove only schema-test artifacts inside this Robot output directory.
+    Run Keyword And Ignore Error    Remove Directory    ${OUTPUT DIR}${/}schema-artifacts    recursive=${TRUE}
+    Run Keyword And Ignore Error    Remove Directory    ${OUTPUT DIR}${/}missing-artifacts    recursive=${TRUE}
