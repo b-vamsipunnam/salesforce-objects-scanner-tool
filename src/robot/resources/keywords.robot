@@ -17,8 +17,10 @@ Normalize Scanner Configuration
     ...    ${shard_value}=${PABOT_SHARDS_PER_PROCESS}
     ...    ${query_timeout_value}=${MAX_QUERY_TIMEOUT_SECONDS}
     ...    ${slow_timeout_value}=${CONNECTEDAPP_TIMEOUT}
+    ...    ${verbose_value}=${VERBOSE_OBJECT_RESULTS}
     ${include_tooling}=    Convert To Boolean    ${include_value}
     ${fail_on_errors}=    Convert To Boolean    ${fail_value}
+    ${verbose_results}=    Convert To Boolean    ${verbose_value}
     ${processes}=    Convert To Integer    ${process_value}
     ${shards_per_process}=    Convert To Integer    ${shard_value}
     ${query_timeout}=    Convert To Integer    ${query_timeout_value}
@@ -29,6 +31,7 @@ Normalize Scanner Configuration
     Should Be True    ${slow_timeout} > 0    CONNECTEDAPP_TIMEOUT must be greater than zero.
     VAR    ${INCLUDE_TOOLING}    ${include_tooling}    scope=SUITE
     VAR    ${FAIL_ON_OPERATIONAL_ERRORS}    ${fail_on_errors}    scope=SUITE
+    VAR    ${VERBOSE_OBJECT_RESULTS}    ${verbose_results}    scope=SUITE
     VAR    ${PABOT_PROCESSES}    ${processes}    scope=SUITE
     VAR    ${PABOT_SHARDS_PER_PROCESS}    ${shards_per_process}    scope=SUITE
     VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${query_timeout}    scope=SUITE
@@ -92,5 +95,7 @@ Get All Object Record Counts
     ...    ${durations_seconds}
     Log To Console    Done. Results saved to: ${workbook_path}
     Log Skipped Summary    ${skipped_reasons}
-    Log Data Summary    ${data_results}
+    IF    $VERBOSE_OBJECT_RESULTS
+        Log Data Summary    ${data_results}
+    END
     Validate Scan Quality    ${skipped_reasons}

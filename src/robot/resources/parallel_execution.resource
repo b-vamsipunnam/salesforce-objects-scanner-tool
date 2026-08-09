@@ -42,6 +42,8 @@ Run Object Queries With Pabot
     ...    SF_CLI:${SF_CLI}
     ...    --variable
     ...    ARTIFACT_DIR:${artifact_directory}
+    ...    --variable
+    ...    VERBOSE_OBJECT_RESULTS:${VERBOSE_OBJECT_RESULTS}
     ...    ${worker_directory}
     ...    stdout=${console_log}
     ...    stderr=STDOUT
@@ -163,11 +165,23 @@ Execute Object Query Worker
     ...    ${reason}
     ...    ${duration}
     ...    ${details}
-    IF    '${reason}' == 'OK'
-        Log To Console    ${object_name}: ${count} (t=${duration}s)
-    ELSE
-        Log To Console    ${object_name}: SKIPPED (${reason}) (t=${duration}s)
+    ${should_log}=    Should Log Object Result    ${reason}
+    IF    ${should_log}
+        IF    '${reason}' == 'OK'
+            Log To Console    ${object_name}: ${count} (t=${duration}s)
+        ELSE
+            Log To Console    ${object_name}: SKIPPED (${reason}) (t=${duration}s)
+        END
     END
+
+Should Log Object Result
+    [Documentation]    Return true for skips or when detailed successful-object output is enabled.
+    [Arguments]    ${reason}    ${verbose_value}=${VERBOSE_OBJECT_RESULTS}
+    IF    '${reason}' != 'OK'
+        RETURN    ${TRUE}
+    END
+    ${verbose}=    Convert To Boolean    ${verbose_value}
+    RETURN    ${verbose}
 
 Get Query Artifact Path
     [Documentation]    Return the deterministic artifact path for one object identity.

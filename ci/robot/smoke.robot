@@ -9,6 +9,7 @@ Suite Teardown    Cleanup Smoke Artifacts
 *** Test Cases ***
 Smoke - Resource Loads
     Should Be Equal    ${SF_CLI}    sf
+    Should Be Equal    ${VERBOSE_OBJECT_RESULTS}    ${FALSE}
 
 Smoke - Safe Parse Sf Json With Noisy Output
     ${fake_output}=    Catenate    SEPARATOR=\n
@@ -96,6 +97,24 @@ Smoke - Command Line Values Are Normalized
     Should Be Equal    ${fail_on_errors}    ${FALSE}
     Should Be Equal As Integers    ${processes}    8
     Should Be Equal As Integers    ${shards}    3
+
+Smoke - Quiet Console Hides Successful Object Results
+    ${log_success}=    Should Log Object Result    OK    ${FALSE}
+    ${log_skip}=    Should Log Object Result    INVALID_TYPE    ${FALSE}
+    Should Be Equal    ${log_success}    ${FALSE}
+    Should Be Equal    ${log_skip}    ${TRUE}
+
+Smoke - Verbose Console Shows Successful Object Results
+    ${log_success}=    Should Log Object Result    OK    ${TRUE}
+    ${log_skip}=    Should Log Object Result    TIMEOUT    ${TRUE}
+    Should Be Equal    ${log_success}    ${TRUE}
+    Should Be Equal    ${log_skip}    ${TRUE}
+
+Smoke - Verbosity Command Line Values Are Normalized
+    Normalize Scanner Configuration    verbose_value=false
+    Should Be Equal    ${VERBOSE_OBJECT_RESULTS}    ${FALSE}
+    Normalize Scanner Configuration    verbose_value=TRUE
+    Should Be Equal    ${VERBOSE_OBJECT_RESULTS}    ${TRUE}
 
 Smoke - Invalid Successful Artifact Is Rejected
     ${artifact_directory}=    Set Variable    ${OUTPUT DIR}${/}schema-artifacts

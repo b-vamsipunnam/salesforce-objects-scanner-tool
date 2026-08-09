@@ -73,6 +73,7 @@ their isolated results into the final reports.
 | `PABOT_PROCESSES` | No | `4` | Number of concurrent object-query workers |
 | `PABOT_SHARDS_PER_PROCESS` | No | `4` | Queued suites per worker for load balancing |
 | `INCLUDE_TOOLING` | No | `true` | Discover and include queryable Tooling API objects |
+| `VERBOSE_OBJECT_RESULTS` | No | `false` | Print each successful object count to the console and Pabot log |
 | `MAX_QUERY_TIMEOUT_SECONDS` | No | `120` | Timeout for a normal object query |
 | `CONNECTEDAPP_TIMEOUT` | No | `180` | Extended timeout for known slow objects |
 | `SCAN_OUTPUT_ROOT` | No | `<repository>/output` | Root directory for completed scans |
@@ -106,22 +107,28 @@ fails, it prints the Salesforce response, lets data-object queries finish, recor
 
 ### Increase parallelism
 
-Four workers is a conservative default. Eight is often a reasonable starting
-point for a faster run:
+Start with the default four workers. Increasing workers may reduce runtime after
+validating Salesforce API capacity. Increase the value gradually; the following
+command is an example configuration, not a performance guarantee:
 
 ```bash
 robot -d results --variable ORG_ALIAS:MyOrg --variable PABOT_PROCESSES:8 src/robot/orchestrator/scan.robot
 ```
 
 More workers are not always faster. Salesforce API capacity, network latency,
-local CPU, and repeated CLI startup all affect throughput. Increase concurrency
-gradually, run during a quieter period, and reduce it if the scan reports request
-limit or transient service errors.
+local CPU, object query complexity, and repeated CLI startup all affect
+throughput. Run during a quieter period and reduce concurrency if the scan
+reports request-limit or transient service errors.
 
 The worker count is fixed when Pabot starts. It cannot be changed during an active
 run.
 
 ## Follow progress
+
+By default, `VERBOSE_OBJECT_RESULTS` is false. The console shows scan progress,
+skipped objects, operational failures, and the final summary without printing
+every successful count. Set `--variable VERBOSE_OBJECT_RESULTS:true` when
+detailed per-object output is useful for troubleshooting.
 
 Pabot's console output is saved inside the isolated run directory. During
 execution, each finished object creates one JSON artifact beneath:
@@ -252,3 +259,13 @@ robocop check src/robot ci/robot
 
 A full scanner run requires Salesforce CLI authentication and the permissions of
 the target user.
+
+### Opt-in live Salesforce workflow
+
+`.github/workflows/live-salesforce-validation.yml` is manual-only and is not part
+of normal CI. It requires a GitHub Environment named
+`salesforce-live-validation` with an `SF_AUTH_URL` secret for an approved
+non-production org. The workflow checks that the secret exists, authenticates as
+`live-validation`, runs a one-object Pabot-backed scanner validation, and uploads
+the Robot results. Keep the environment protected and never store or expose the
+auth URL in repository content or workflow inputs.

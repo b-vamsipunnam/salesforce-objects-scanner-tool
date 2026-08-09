@@ -1,0 +1,93 @@
+name: Live Salesforce Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_non_production:
+        description: Confirm SF_AUTH_URL targets an approved non-production Salesforce org
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    # Configure this environment in GitHub and store SF_AUTH_URL as an
+    # environment secret. The auth URL must target a sandbox, scratch org, or
+    # another explicitly approved non-production org. Never store it in Git.
+    environment: salesforce-live-validation
+
+    steps:
+      - name: Require non-production confirmation
+        if: ${{ ! inputs.confirm_non_production }}
+        run: |
+          echo "::error::Confirm that the configured Salesforce org is non-production."
+          exit 1
+
+      - name: Require Salesforce authentication secret
+        env:
+          SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+        run: |
+          if [ -z "$SF_AUTH_URL" ]; then
+            echo "::error::Missing SF_AUTH_URL in the salesforce-live-validation environment."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install scanner and Salesforce CLI
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          npm install --global @salesforce/cli
+
+      - name: Authenticate non-production org
+        env:
+          SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+        run: |
+          umask 077
+          printf '%s' "$SF_AUTH_URL" > "$RUNNER_TEMP/sfdx-auth-url.txt"
+          sf org login sfdx-url \
+            --sfdx-url-file "$RUNNER_TEMP/sfdx-auth-url.txt" \
+            --alias live-validation \
+            --set-default
+
+      - name: Run small live scanner validation
+        run: |
+          robot -d results-live \
+            --variable ORG_ALIAS:live-validation \
+            --variable PABOT_PROCESSES:2 \
+            --variable PABOT_SHARDS_PER_PROCESS:1 \
+            --variable VERBOSE_OBJECT_RESULTS:true \
+            ci/robot/live_salesforce_validation.robot
+
+      - name: Remove temporary auth file
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/sfdx-auth-url.txt" ]; then
+            rm -- "$RUNNER_TEMP/sfdx-auth-url.txt"
+          fi
+
+      - name: Upload live validation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-salesforce-validation-results
+          path: results-live/
+          if-no-files-found: ignore
+          retention-days: 14
