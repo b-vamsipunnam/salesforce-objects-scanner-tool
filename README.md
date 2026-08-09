@@ -29,7 +29,7 @@ planning, and finding objects with large data volumes.
 
 ## Requirements
 
-- Python 3.9 or newer
+- Python 3.10 or newer
 - Salesforce CLI (`sf`)
 - Access to an authenticated Salesforce org
 

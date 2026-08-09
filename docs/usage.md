@@ -6,7 +6,7 @@ problems. For the components and execution model, see
 
 ## Install the scanner
 
-You need Python 3.9 or newer, Salesforce CLI, and access to a Salesforce org.
+You need Python 3.10 or newer, Salesforce CLI, and access to a Salesforce org.
 If Salesforce CLI was installed through npm, Node.js is also required.
 
 Clone the repository and create a virtual environment:

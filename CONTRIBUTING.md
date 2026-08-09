@@ -20,7 +20,7 @@ cd salesforce-objects-scanner-tool
 
 Make sure you have the following installed:
 
-* Python 3.9+
+* Python 3.10+
 * Node.js (18+)
 * Robot Framework
 * Salesforce CLI
