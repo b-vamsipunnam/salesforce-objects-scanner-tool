@@ -93,8 +93,12 @@ Create Fake Sf Launcher
         Create File    ${launcher}    ${content}
     ELSE
         ${launcher}=    Normalize Path    ${launcher_directory}${/}sf
-        ${content}=    Set Variable    #!/usr/bin/env sh\nexec "${python}" "${fake_script}" "$@"\n
+        ${content}=    Set Variable    \#!/usr/bin/env sh\nexec "${python}" "${fake_script}" "$@"\n
         Create File    ${launcher}    ${content}
+        ${launcher_content}=    Get File    ${launcher}
+        Should Be True
+        ...    $launcher_content.startswith('#!')
+        ...    POSIX fake Salesforce launcher must start with a shebang.
         ${chmod}=    Run Process    chmod    +x    ${launcher}
         Should Be Equal As Integers    ${chmod.rc}    0
     END
