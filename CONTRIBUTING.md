@@ -20,7 +20,7 @@ cd salesforce-objects-scanner-tool
 
 Make sure you have the following installed:
 
-* Python 3.10+
+* Python 3.9+
 * Node.js (18+)
 * Robot Framework
 * Salesforce CLI
@@ -28,7 +28,7 @@ Make sure you have the following installed:
 Install dependencies:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 Configure Salesforce org authentication:
@@ -44,7 +44,19 @@ sf org login web
 Before submitting changes, ensure all tests pass:
 
 ```bash
-robot src/robot/orchestrator/
+python -m unittest discover -s tests -v
+robot -d results-smoke ci/robot/smoke.robot
+robot -d results-parallel ci/robot/parallel_smoke.robot
+robot --dryrun -d results-dryrun src/robot/orchestrator/scan.robot
+ruff check src tests ci/fakes
+robocop check src/robot ci/robot
+```
+
+These checks do not need a Salesforce org. Run a live scan separately when the
+change affects Salesforce behavior:
+
+```bash
+robot -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We, as contributors and maintainers of the Salesforce Files Downloader Tool, pledge to make participation in this project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, education, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We, as contributors and maintainers of the Salesforce Objects Scanner, pledge to make participation in this project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, education, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
 We are committed to providing a welcoming, inclusive, and professional environment.
 
@@ -62,7 +62,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be repor
 All reports will be reviewed promptly and handled with discretion and confidentiality.
 
 **Maintainer:** Bhimeswara Vamsi Punnam  
-**Contact Method:** GitHub private message or repository contact
+**Contact Method:** Open a minimal repository issue requesting a private communication channel; do not include sensitive details.
 
 No retaliation against reporters will be tolerated.
 

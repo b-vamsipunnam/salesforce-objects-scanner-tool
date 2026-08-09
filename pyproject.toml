@@ -1,0 +1,16 @@
+[tool.robocop.lint]
+threshold = "W"
+# These limits conflict with this suite's deliberate orchestration style:
+# one executable suite, explicit suite-scoped configuration, generated worker
+# variable names, and readable end-to-end workflow keywords.
+ignore = [
+    "DOC02",
+    "LEN01",
+    "LEN03",
+    "LEN06",
+    "LEN07",
+    "LEN10",
+    "VAR05",
+    "VAR06",
+    "VAR10",
+]

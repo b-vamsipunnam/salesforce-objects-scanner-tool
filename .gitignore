@@ -12,6 +12,7 @@ results/
 output.xml
 log.html
 report.html
+PIPE
 pabot_results/
 .robotframework/
 

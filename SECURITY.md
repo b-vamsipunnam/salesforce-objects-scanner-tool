@@ -18,9 +18,9 @@ If you discover a security vulnerability, please report it privately so it can b
 Please contact the maintainer directly:
 
 **Maintainer:** Bhimeswara Vamsi Punnam  
-**Preferred Method:** GitHub private message or repository contact  
+**Preferred Method:** Use the repository's **Security → Report a vulnerability** form when it is available.
 
-If private messaging is unavailable, open a minimal issue requesting a secure communication channel.
+If private vulnerability reporting is unavailable, open a minimal issue requesting a secure communication channel. Do not include vulnerability details in that issue.
 
 We aim to acknowledge reports within **72 hours** and provide updates during the investigation.
 
@@ -87,7 +87,7 @@ Contributors who report issues responsibly may be credited (with permission).
 
 Security updates and advisories will be shared via:
 - GitHub Releases  
-- Repository changelog  
+- [Repository changelog](CHANGELOG.md)
 - Project documentation  
 
 For critical issues, CVE identifiers may be requested when appropriate.

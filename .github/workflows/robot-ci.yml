@@ -8,7 +8,11 @@ on:
 
 jobs:
   smoke:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.9', '3.11']
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -17,23 +21,39 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install robotframework==7.2.2
+          pip install -r requirements-dev.txt
 
       - name: Run smoke tests
-        run: |
-          mkdir -p results
-          robot -d results ci/robot/smoke.robot
+        run: robot -d results ci/robot/smoke.robot
+
+      - name: Validate parallel object execution
+        run: robot -d results-parallel ci/robot/parallel_smoke.robot
+
+      - name: Run Python tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Check Python style
+        run: ruff check src tests ci/fakes
+
+      - name: Check Robot Framework style
+        run: robocop check src/robot ci/robot
+
+      - name: Validate production suite syntax
+        run: robot --dryrun -d results-dryrun src/robot/orchestrator/scan.robot
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-test-results
-          path: results/
+          name: smoke-test-results-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            results/
+            results-parallel/
+            results-dryrun/
           if-no-files-found: ignore

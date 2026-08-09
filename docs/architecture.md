@@ -1,257 +1,97 @@
 # Architecture
 
-## Overview
+The scanner is a Robot Framework workflow built around Salesforce CLI. Robot
+handles discovery, parallel work planning, query execution, result validation,
+and report generation. Python is limited to small interoperability helpers and
+the Excel writer.
 
-The **Salesforce Objects Scanner Tool** is a Robot Framework–based automation solution designed to analyze Salesforce org data footprint by retrieving record counts across all queryable objects.
-
-The architecture focuses on **safe execution, structured outputs, and scalability**, making it suitable for large Salesforce environments with hundreds to thousands of objects.
-
-The solution combines:
-- Salesforce CLI (`sf`) for metadata discovery and query execution
-- Robot Framework for orchestration and control flow
-- Process-based execution with timeout safeguards
-- Structured JSON outputs and Excel reporting for analysis
-
----
-
-## Why This Architecture
-
-Salesforce lacks a unified mechanism to retrieve record counts across all objects efficiently.  
-
-Challenges include:
-- Large number of objects (standard, custom, tooling)
-- Non-queryable or restricted objects
-- Long-running queries impacting execution stability
-
-This architecture ensures safe, transparent, and predictable execution through CLI-driven queries, timeout protection, and structured outputs.  
-
-## Key Architectural Characteristics
-
-- Deterministic execution (single-pass, no retry amplification)
-- CLI-driven control plane for consistent and authenticated operations
-- Strong separation of orchestration, execution, and output layers
-- Structured observability via JSON artifacts and Excel reporting
-
-## Key Execution Behavior
-
-- Each execution creates an isolated run folder (Run_<datetime>_<uuid>)
-- Ensures reproducibility, traceability, and zero cross-run contamination
-
----
-
-## High-Level Architecture
+## Execution flow
 
 <p align="center">
-  <img src="architecture.png" width="700">
+  <img src="architecture.svg" width="900" alt="Parallel Salesforce Object Count Scanner architecture">
 </p>
 
----
+1. Validate the Salesforce CLI and authenticated org alias.
+2. Discover standard, custom, and optionally Tooling API objects.
+3. Deduplicate the object names and distribute them across balanced Robot suites.
+4. Run those suites concurrently with Pabot.
+5. Query every object with its own timeout and write one atomic JSON artifact.
+6. Verify that every scheduled object produced exactly one valid artifact.
+7. Consolidate counts, skips, durations, and operational failures.
+8. Save JSON and Excel reports, then apply the scan quality gate.
 
-### Control Layer (Salesforce CLI)
+When requested Tooling discovery fails, the scanner does not silently substitute
+a partial object list. Data queries continue, the report records
+`TOOLING_DISCOVERY_FAILED`, and the final quality gate fails. Tooling can be
+omitted explicitly with `INCLUDE_TOOLING:false`; there is no fallback object list.
 
-- Uses `sf sobject list --json` to discover queryable objects  
-- Executes `SELECT COUNT()` queries via CLI  
-- Handles authentication using Salesforce CLI session  
+Each Pabot worker processes a batch of objects. This reuses worker processes and
+avoids starting a separate Robot process for every object. The number of suites
+is controlled by `PABOT_PROCESSES * PABOT_SHARDS_PER_PROCESS`, capped at the
+number of objects.
 
----
+## Component boundaries
 
-### Orchestration Layer (Robot Framework)
+| Component | Responsibility |
+|---|---|
+| `orchestrator/scan.robot` | Small executable entry point |
+| `resources/keywords.robot` | Public workflow composition |
+| `resources/configuration.resource` | Defaults and runtime normalization |
+| `resources/salesforce.resource` | Salesforce discovery, queries, and error classification |
+| `resources/parallel_execution.resource` | Balanced Pabot suites and artifact validation |
+| `resources/reporting.resource` | Run directories, JSON reports, and Excel generation |
+| `libraries/SfUtils.py` | Executable lookup and robust CLI JSON parsing |
+| `libraries/ExcelWriter.py` | Formatted workbook creation |
 
-- Coordinates full scan workflow  
-- Applies filtering logic for unsupported objects  
-- Ensures deterministic, retry-free execution
-- Manages logging and reporting  
+## Run isolation
 
----
+Every execution creates `output/Run_<date-time>_<id>/`. Generated worker suites,
+Pabot logs, and per-object artifacts stay inside that directory. Processes use
+their own captured output; they do not share a root-level stdout or stderr file.
 
-### Execution Layer
+Artifact names include the API family (`data` or `tooling`) and object name, so
+the same name in both APIs cannot collide. A worker first writes a temporary file
+and then moves it to its final path, preventing the parent from reading a partial
+result.
 
-- Executes queries per object  
-- Applies per-query timeout protection  
-- Tracks execution duration  
-- Ensures predictable and bounded execution
+## Failure model
 
----
+Expected Salesforce limitations are recorded as skips, including objects that do
+not support `COUNT()`, require a filter, or are inaccessible to the current user.
+They do not fail the scan.
 
-### Output Layer
+Infrastructure and session problems are different. Invalid JSON, expired
+sessions, request-limit errors, timeouts, and unclassified CLI failures are
+operational failures. Reports are written first so the evidence is retained;
+the quality gate then fails the Robot run by default. Set
+`FAIL_ON_OPERATIONAL_ERRORS:false` only when a best-effort report is explicitly
+preferred.
 
-- JSON artifacts:
-  - `data_<datetime>.json`
-  - `tooling_<datetime>.json`
-  - `skipped_<datetime>.json`
-  - `durations_<datetime>.json`
-- Excel report:
-  - `SF_Objects_<datetime>.xlsx`
+Each batch converts unexpected per-object query exceptions into a `WORKER_ERROR`
+artifact before moving to the next object. Invalid artifact schemas and artifact
+write failures remain fatal because their results cannot be trusted.
 
----
+## Outputs
 
-## Repository Structure
+The `json/` directory contains successful data counts, successful Tooling counts,
+all skips, and per-object durations. The run root contains the formatted Excel
+workbook. Robot's top-level report remains in the directory supplied with `-d`,
+while detailed Pabot logs stay under the isolated run directory.
 
-```
-salesforce-objects-scanner/
-├── .github/
-│   ├── workflows/
-│   │   └── robot-ci.yml                                   # GitHub Actions CI
-│   └── PULL_REQUEST_TEMPLATE.md                           # Pull request template
-├── ci/
-│   └── robot/
-│       └── smoke.robot
-├── output/                                                # Generated runtime outputs
-│   └── Run_<datetime>_<uuid>/                             # Isolated folder for each execution
-│       ├── json/                                          # Structured JSON artifacts
-│       │   ├── data_<datetime>.json
-│       │   ├── tooling_<datetime>.json
-│       │   ├── skipped_<datetime>.json
-│       │   └── durations_<datetime>.json
-│       └── SF_Objects_<datetime>.xlsx                     # Consolidated Excel report
-├── results/                                               # Robot Framework execution logs
-│   ├── log.html
-│   ├── output.xml
-│   └── report.html
-├── src/
-│   └── robot/
-│       ├── libraries/
-│       │   └── ExcelWriter.py
-│       ├── orchestrator/
-│       │   └── scan.robot
-│       └── resources/
-│           └── keywords.robot                             # Core workflow and keywords
-├── .gitignore
-├── CODE_OF_CONDUCT.md
-├── CONTRIBUTING.md
-├── README.md
-├── requirements.txt
-└── SECURITY.md
-```
----
+## Scaling safely
 
-## Folder Responsibilities
+`PABOT_PROCESSES` controls simultaneous Salesforce queries.
+`PABOT_SHARDS_PER_PROCESS` controls how many balanced suites are queued per
+worker, which improves load balancing when object runtimes vary. Increase worker
+count gradually: Salesforce API capacity and local CLI startup cost usually
+become the limiting factors before CPU does.
 
-- **docs/**        – Architecture and design documentation  
-- **src/robot/**   – Core test suites and libraries  
-- **output/**      – Generated JSON and Excel reports  
-- **results/**     – Robot Framework logs and reports  
-- **ci/**          – CI test suites  
+The scanner performs one discovery pass and one count attempt per object. It does
+not automatically retry failed queries, keeping API usage and runtime
+predictable.
 
----
+## Security
 
-## Execution Model
-
-### Authentication
-
-- Managed via Salesforce CLI (`sf org login web`)  
-- No credentials stored in code  
-- Session-based authentication reused across commands  
-
----
-
-### Object Discovery
-
-- Retrieve all objects via CLI  
-- Filter:
-  - Non-queryable objects  
-  - Unsupported types  
-  - Known noisy patterns  
-
----
-
-### Query Execution Flow
-
-1. Discover objects  
-2. Filter unsupported objects  
-3. Execute `SELECT COUNT()` per object  
-4. Apply timeout control  
-5. Capture success or skip reason  
-6. Track execution duration  
-7. Persist results  
-
----
-
-## Failure and Handling Model
-
-- Objects that fail are classified into:
-  - `COUNT_NOT_SUPPORTED`
-  - `REQUIRES_WHERE`
-  - `INVALID_TYPE`
-- No retry amplification (predictable execution)
-- Failures are recorded in `skipped.json`
-- Execution continues without interruption (fault isolation)
-
----
-
-## Security Architecture
-
-- Authentication delegated to Salesforce CLI  
-- No credentials stored in repository  
-- Uses existing authenticated sessions  
-- Sensitive files excluded via `.gitignore`  
-
----
-
-## Runtime vs Source Separation
-
-| Category        | Location     | Notes                          |
-|----------------|-------------|--------------------------------|
-| Source code    | `src/robot/`| Version-controlled             |
-| Outputs        | `output/`   | Generated at runtime           |
-| Reports        | `results/`  | Execution logs                 |
-| CI tests       | `ci/`       | Smoke test automation          |
-| Documentation  | `docs/`     | Architecture & design          |
-
----
-
-## Design Principles
-
-- Deterministic execution (no retries)
-- Timeout-controlled processing
-- Clear separation of concerns
-- Structured and traceable outputs
-- Scalable for large orgs
-- CLI-based authentication (no secrets in code)
-- CI/CD compatible and headless execution ready
-
----
-
-## Scalability Considerations
-
-- Handles hundreds to thousands of objects  
-- Sequential execution ensures stability  
-- Future-ready for parallel execution (Pabot)  
-- Performance depends on:
-  - Org size  
-  - Network latency  
-  - Query response time  
-
----
-
-## Extensibility
-
-The framework can be extended with:
-
-- Additional filters for object classification  
-- Parallel execution support (Pabot)  
-- Custom analytics on output data  
-- Integration with dashboards or databases  
-
----
-
-## Observability and Monitoring
-
-- Robot Framework HTML reports (`log.html`, `report.html`)  
-- JSON outputs for structured analysis  
-- Execution duration tracking per object  
-- Clear success vs skip visibility  
-
----
-
-## Deployment Model
-
-- Local developer environments  
-- CI/CD pipelines (GitHub Actions, Jenkins)  
-- Headless execution environments  
-- Containerized environments (future scope)  
-
----
-
-**Author:** Bhimeswara Vamsi Punnam  
-**Role:** Lead Software Development Engineer in Test (SDET)
+Authentication is delegated to Salesforce CLI. The repository stores no
+passwords, tokens, or connected-app secrets. Runtime output is ignored by Git and
+each scan uses the permissions of the authenticated Salesforce user.
