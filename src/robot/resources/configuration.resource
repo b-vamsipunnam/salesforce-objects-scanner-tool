@@ -12,6 +12,7 @@ ${ORG_ALIAS}                           ${EMPTY}
 ${SCAN_OUTPUT_ROOT}                    ${EXECDIR}${/}output
 ${OUTPUT_FILENAME}                     SF_Objects
 ${RUN_PREFIX}                          Run_
+${VERBOSE_OBJECT_RESULTS}              ${FALSE}
 
 # Parallel execution
 ${PABOT_PROCESSES}                     ${4}

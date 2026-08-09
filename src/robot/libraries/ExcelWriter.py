@@ -25,7 +25,6 @@ def autosize(sheet):
 
 def format_sheet(sheet):
     sheet.freeze_panes = "A2"
-    sheet.auto_filter.ref = sheet.dimensions
     if sheet.max_row > 1:
         table_name = "".join(character for character in sheet.title if character.isalnum())
         table = Table(displayName=f"{table_name}Table", ref=sheet.dimensions)
@@ -37,6 +36,10 @@ def format_sheet(sheet):
             showColumnStripes=False,
         )
         sheet.add_table(table)
+    else:
+        # A table supplies its own AutoFilter. Only add a worksheet-level filter
+        # when there are no data rows and therefore no table.
+        sheet.auto_filter.ref = sheet.dimensions
 
 
 def load_json(path):

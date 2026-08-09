@@ -15,12 +15,15 @@ If you discover a security vulnerability, please report it privately so it can b
 
 ## How to Report
 
-Please contact the maintainer directly:
+**Preferred channel:** If GitHub private vulnerability reporting is enabled for
+this repository, use **Security → Report a vulnerability**. This keeps the report
+and any supporting evidence private.
 
-**Maintainer:** Bhimeswara Vamsi Punnam  
-**Preferred Method:** Use the repository's **Security → Report a vulnerability** form when it is available.
-
-If private vulnerability reporting is unavailable, open a minimal issue requesting a secure communication channel. Do not include vulnerability details in that issue.
+**Fallback:** Use a private contact method listed on the maintainer's GitHub
+profile. If no private method is available, open a minimal issue asking the
+maintainer to establish a secure communication channel. Do not include the
+vulnerability description, reproduction steps, logs, proof of concept,
+credentials, or other sensitive details in that issue.
 
 We aim to acknowledge reports within **72 hours** and provide updates during the investigation.
 
@@ -87,7 +90,7 @@ Contributors who report issues responsibly may be credited (with permission).
 
 Security updates and advisories will be shared via:
 - GitHub Releases  
-- [Repository changelog](CHANGELOG.md)
+- GitHub Security Advisories, when applicable
 - Project documentation  
 
 For critical issues, CVE identifiers may be requested when appropriate.

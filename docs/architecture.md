@@ -32,16 +32,16 @@ number of objects.
 
 ## Component boundaries
 
-| Component | Responsibility |
-|---|---|
-| `orchestrator/scan.robot` | Small executable entry point |
-| `resources/keywords.robot` | Public workflow composition |
-| `resources/configuration.resource` | Defaults and runtime normalization |
-| `resources/salesforce.resource` | Salesforce discovery, queries, and error classification |
-| `resources/parallel_execution.resource` | Balanced Pabot suites and artifact validation |
-| `resources/reporting.resource` | Run directories, JSON reports, and Excel generation |
-| `libraries/SfUtils.py` | Executable lookup and robust CLI JSON parsing |
-| `libraries/ExcelWriter.py` | Formatted workbook creation |
+| Component                               | Responsibility                                          |
+|-----------------------------------------|---------------------------------------------------------|
+| `orchestrator/scan.robot`               | Small executable entry point                            |
+| `resources/keywords.robot`              | Public workflow composition                             |
+| `resources/configuration.resource`      | Defaults and runtime normalization                      |
+| `resources/salesforce.resource`         | Salesforce discovery, queries, and error classification |
+| `resources/parallel_execution.resource` | Balanced Pabot suites and artifact validation           |
+| `resources/reporting.resource`          | Run directories, JSON reports, and Excel generation     |
+| `libraries/SfUtils.py`                  | Executable lookup and robust CLI JSON parsing           |
+| `libraries/ExcelWriter.py`              | Formatted workbook creation                             |
 
 ## Run isolation
 
