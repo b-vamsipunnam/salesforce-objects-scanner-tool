@@ -16,7 +16,7 @@ Smoke - Pabot Executes Balanced Object Batches
     VAR    ${SF_CLI}    ${fake_sf}    scope=TEST
     @{data_objects}=    Create List    AggregateResult
     @{tooling_objects}=    Create List    DataStatistics
-    ${data}    ${tooling}    ${skipped}    ${durations}=
+    ${data}    ${tooling}    ${skipped}    ${details}    ${durations}=
     ...    Run Object Queries With Pabot
     ...    ${data_objects}
     ...    ${tooling_objects}
@@ -27,6 +27,7 @@ Smoke - Pabot Executes Balanced Object Batches
     Dictionary Should Contain Item    ${skipped}    TOOLING::DataStatistics    INVALID_TYPE
     Dictionary Should Contain Key    ${durations}    AggregateResult
     Dictionary Should Contain Key    ${durations}    TOOLING::DataStatistics
+    Dictionary Should Contain Key    ${details}    AggregateResult
 
 Smoke - Concurrent CLI Results Stay With Their Objects
     ${fake_sf}=    Create Fake Sf Launcher    ${PARALLEL_SMOKE_DIR}${/}fake-cli
@@ -35,7 +36,7 @@ Smoke - Concurrent CLI Results Stay With Their Objects
     VAR    ${PABOT_SHARDS_PER_PROCESS}    ${2}    scope=TEST
     @{data_objects}=    Create List    Account    Contact
     @{tooling_objects}=    Create List    ApexClass
-    ${data}    ${tooling}    ${skipped}    ${durations}=
+    ${data}    ${tooling}    ${skipped}    ${details}    ${durations}=
     ...    Run Object Queries With Pabot
     ...    ${data_objects}
     ...    ${tooling_objects}
@@ -44,6 +45,7 @@ Smoke - Concurrent CLI Results Stay With Their Objects
     Dictionary Should Contain Item    ${data}    Contact    ${7}
     Dictionary Should Contain Item    ${tooling}    ApexClass    ${3}
     Should Be Empty    ${skipped}
+    Should Be Empty    ${details}
     Length Should Be    ${durations}    3
 
 Smoke - Tooling Discovery Failure Is Operational
@@ -54,11 +56,22 @@ Smoke - Tooling Discovery Failure Is Operational
     Should Be Empty    ${objects}
     Should Be Equal    ${reason}    TOOLING_DISCOVERY_FAILED
 
+Smoke - Large Discovery Output Does Not Deadlock
+    [Documentation]    Verify file-backed capture handles sf JSON larger than an operating-system pipe.
+    ${run_directory}=    Set Variable    ${PARALLEL_SMOKE_DIR}${/}large-discovery
+    ${fake_sf}=    Create Fake Sf Launcher    ${run_directory}${/}fake-cli
+    VAR    ${SF_CLI}    ${fake_sf}    scope=TEST
+    VAR    ${SCAN_OUTPUT_ROOT}    ${run_directory}    scope=TEST
+    VAR    ${SF_COMMAND_TIMEOUT_SECONDS}    ${5}    scope=TEST
+    ${response}=    Run Sf Json    sobject    list
+    ${names}=    Get Object Names From List    ${response}
+    Length Should Be    ${names}    10000
+
 Smoke - Unexpected Worker Error Preserves Artifact
     VAR    ${SF_CLI}    ${PARALLEL_SMOKE_DIR}${/}missing-sf    scope=TEST
     @{data_objects}=    Create List    Account
     @{tooling_objects}=    Create List
-    ${data}    ${tooling}    ${skipped}    ${durations}=
+    ${data}    ${tooling}    ${skipped}    ${details}    ${durations}=
     ...    Run Object Queries With Pabot
     ...    ${data_objects}
     ...    ${tooling_objects}
@@ -67,16 +80,32 @@ Smoke - Unexpected Worker Error Preserves Artifact
     Should Be Empty    ${tooling}
     Dictionary Should Contain Item    ${skipped}    Account    WORKER_ERROR
     Dictionary Should Contain Key    ${durations}    Account
+    Dictionary Should Contain Key    ${details}    Account
 
 Smoke - Query Timeout Terminates Process
     ${fake_sf}=    Create Fake Sf Launcher    ${PARALLEL_SMOKE_DIR}${/}timeout-cli
     VAR    ${SF_CLI}    ${fake_sf}    scope=TEST
     VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${1}    scope=TEST
     VAR    ${POLL_INTERVAL_SECONDS}    ${0.1}    scope=TEST
-    ${count}    ${reason}    ${duration}=    Get Record Count Safe    SleepObject
+    ${count}    ${reason}    ${duration}    ${details}=    Get Record Count Safe    SleepObject
     Should Be Equal    ${count}    ${None}
     Should Be Equal    ${reason}    TIMEOUT
     Should Be True    ${duration} >= 1
+    Dictionary Should Contain Item    ${details}    name    TIMEOUT
+
+Smoke - Transient Salesforce Failure Is Retried And Preserved
+    ${fake_sf}=    Create Fake Sf Launcher    ${PARALLEL_SMOKE_DIR}${/}retry-cli
+    VAR    ${SF_CLI}    ${fake_sf}    scope=TEST
+    VAR    ${SF_TRANSIENT_RETRIES}    ${1}    scope=TEST
+    VAR    ${SF_RETRY_BACKOFF_SECONDS}    ${0.1}    scope=TEST
+    ${count}    ${reason}    ${duration}    ${details}=
+    ...    Get Record Count Safe    ExternalFailure
+    Should Be Equal    ${count}    ${None}
+    Should Be Equal    ${reason}    EXTERNAL_OBJECT_EXCEPTION
+    Should Be True    ${duration} >= 0.1
+    Dictionary Should Contain Item    ${details}    name    EXTERNAL_OBJECT_EXCEPTION
+    Dictionary Should Contain Item    ${details}    attempts    ${2}
+    Should Contain    ${details}[message]    temporarily unavailable
 
 
 *** Keywords ***

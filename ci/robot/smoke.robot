@@ -25,6 +25,26 @@ Smoke - Get Skip Reason From JSON Error
     ${reason}=        Get Skip Reason    ${error_json}
     Should Be Equal   ${reason}    COUNT_NOT_SUPPORTED
 
+Smoke - Known Salesforce Count Limitations Are Expected Skips
+    ${unknown}=    Set Variable
+    ...    {"name":"UNKNOWN_EXCEPTION","message":"An unexpected error occurred. Please include this ErrorId: 123"}
+    ${activity_reason}=    Get Skip Reason    ${unknown}    ActivityFieldHistory    ${FALSE}
+    ${tooling_reason}=    Get Skip Reason    ${unknown}    InstalledSubscriberPackage    ${TRUE}
+    ${user_access}=    Set Variable
+    ...    {"name":"INVALID_FIELD","message":"RecordId field must be selected"}
+    ${user_access_reason}=    Get Skip Reason    ${user_access}    UserRecordAccess    ${FALSE}
+    Should Be Equal    ${activity_reason}    COUNT_NOT_SUPPORTED
+    Should Be Equal    ${tooling_reason}    COUNT_NOT_SUPPORTED
+    Should Be Equal    ${user_access_reason}    RESTRICTIVE_FILTER_REQUIRED
+
+Smoke - Unknown Exceptions Remain Operational For Other Objects
+    ${unknown}=    Set Variable
+    ...    {"name":"UNKNOWN_EXCEPTION","message":"An unexpected error occurred. Please include this ErrorId: 123"}
+    ${data_reason}=    Get Skip Reason    ${unknown}    Account    ${FALSE}
+    ${wrong_api_reason}=    Get Skip Reason    ${unknown}    InstalledSubscriberPackage    ${FALSE}
+    Should Be Equal    ${data_reason}    UNKNOWN_EXCEPTION
+    Should Be Equal    ${wrong_api_reason}    UNKNOWN_EXCEPTION
+
 Smoke - Filter Preserves Queryable Suffixes And Deduplicates
     @{objects}=    Create List
     ...    Account
@@ -47,8 +67,8 @@ Smoke - Unsupported Object Is Classified At Runtime
 Smoke - Required Where Is Classified At Runtime
     ${error_json}=    Set Variable
     ...    {"name":"MALFORMED_QUERY","message":"Where clauses should contain StatType"}
-    ${reason}=    Get Skip Reason    ${error_json}
-    Should Be Equal    ${reason}    REQUIRES_WHERE_StatType
+    ${reason}=    Get Skip Reason    ${error_json}    DataStatistics
+    Should Be Equal    ${reason}    RESTRICTIVE_FILTER_REQUIRED
 
 Smoke - Missing Alias Has Actionable Validation
     ${status}    ${message}=    Run Keyword And Ignore Error    Validate Org Alias
@@ -76,14 +96,14 @@ Smoke - Operational Failure Fails Quality Gate
 Smoke - Unknown Error Becomes Operational Failure
     ${error_json}=    Set Variable    {"name":"NEW_SALESFORCE_ERROR","message":"unexpected"}
     ${reason}=    Get Skip Reason    ${error_json}
-    Should Be Equal    ${reason}    OTHER_ERROR
+    Should Be Equal    ${reason}    NEW_SALESFORCE_ERROR
     &{skipped}=    Create Dictionary    Account=${reason}
     ${status}    ${message}=    Run Keyword And Ignore Error    Validate Scan Quality    ${skipped}
     Should Be Equal    ${status}    FAIL
-    Should Contain    ${message}    OTHER_ERROR
+    Should Contain    ${message}    NEW_SALESFORCE_ERROR
 
 Smoke - Expected Skip Passes Quality Gate
-    &{skipped}=    Create Dictionary    AggregateResult=INVALID_TYPE
+    &{skipped}=    Create Dictionary    AccountChangeEvent=QUERY_NOT_SUPPORTED
     Validate Scan Quality    ${skipped}
 
 Smoke - Best Effort Mode Allows Operational Failure
@@ -122,7 +142,7 @@ Smoke - Invalid Successful Artifact Is Rejected
     ${artifact}=    Set Variable    ${artifact_directory}${/}data__Account.json
     Create File
     ...    ${artifact}
-    ...    {"object_name":"Account","tooling":false,"count":null,"reason":"OK","duration":1}
+    ...    {"object_name":"Account","tooling":false,"count":null,"reason":"OK","duration":1,"details":{}}
     ${status}    ${message}=    Run Keyword And Ignore Error
     ...    Read Query Artifact
     ...    ${artifact_directory}

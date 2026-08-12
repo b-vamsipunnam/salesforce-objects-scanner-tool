@@ -44,6 +44,12 @@ Run Object Queries With Pabot
     ...    ARTIFACT_DIR:${artifact_directory}
     ...    --variable
     ...    VERBOSE_OBJECT_RESULTS:${VERBOSE_OBJECT_RESULTS}
+    ...    --variable
+    ...    SF_TRANSIENT_RETRIES:${SF_TRANSIENT_RETRIES}
+    ...    --variable
+    ...    SF_RETRY_BACKOFF_SECONDS:${SF_RETRY_BACKOFF_SECONDS}
+    ...    --variable
+    ...    ALLOW_DISABLED_DATACLOUD:${ALLOW_DISABLED_DATACLOUD}
     ...    ${worker_directory}
     ...    stdout=${console_log}
     ...    stderr=STDOUT
@@ -52,12 +58,17 @@ Run Object Queries With Pabot
         Log To Console    ${console_output}
         Fail    Pabot object batches failed. See ${pabot_output_directory}.
     END
-    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${durations}=
+    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${skipped_details}    ${durations}=
     ...    Load Query Artifacts
     ...    ${artifact_directory}
     ...    ${data_objects}
     ...    ${tooling_objects}
-    RETURN    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${durations}
+    RETURN
+    ...    ${data_results}
+    ...    ${tooling_results}
+    ...    ${skipped_reasons}
+    ...    ${skipped_details}
+    ...    ${durations}
 
 Generate Pabot Worker Suites
     [Documentation]    Create balanced Robot suites so Pabot reuses a process for many objects.
@@ -148,7 +159,7 @@ Execute Object Query Worker
         ${count}=    Set Variable    ${query_result}[0]
         ${reason}=    Set Variable    ${query_result}[1]
         ${duration}=    Set Variable    ${query_result}[2]
-        ${details}=    Set Variable    ${EMPTY}
+        ${details}=    Set Variable    ${query_result}[3]
     ELSE
         ${count}=    Set Variable    ${None}
         ${reason}=    Set Variable    WORKER_ERROR
@@ -224,6 +235,7 @@ Read Query Artifact
     Dictionary Should Contain Key    ${payload}    count
     Dictionary Should Contain Key    ${payload}    reason
     Dictionary Should Contain Key    ${payload}    duration
+    Dictionary Should Contain Key    ${payload}    details
     Should Be Equal    ${payload}[object_name]    ${object_name}
     ${actual_tooling}=    Convert To Boolean    ${payload}[tooling]
     Should Be Equal    ${actual_tooling}    ${tooling}
@@ -244,7 +256,7 @@ Read Query Artifact
         ...    Skipped artifact count must be null.
         ${count}=    Set Variable    ${None}
     END
-    RETURN    ${count}    ${reason}    ${duration}
+    RETURN    ${count}    ${reason}    ${duration}    ${payload}[details]
 
 Load Query Artifacts
     [Documentation]    Validate completeness and build the four report dictionaries.
@@ -258,9 +270,10 @@ Load Query Artifacts
     ${data_results}=    Create Dictionary
     ${tooling_results}=    Create Dictionary
     ${skipped_reasons}=    Create Dictionary
+    ${skipped_details}=    Create Dictionary
     ${durations}=    Create Dictionary
     FOR    ${object_name}    IN    @{data_objects}
-        ${count}    ${reason}    ${duration}=    Read Query Artifact
+        ${count}    ${reason}    ${duration}    ${details}=    Read Query Artifact
         ...    ${artifact_directory}
         ...    ${object_name}
         ...    ${FALSE}
@@ -269,10 +282,11 @@ Load Query Artifacts
             Set To Dictionary    ${data_results}    ${object_name}=${count}
         ELSE
             Set To Dictionary    ${skipped_reasons}    ${object_name}=${reason}
+            Set To Dictionary    ${skipped_details}    ${object_name}=${details}
         END
     END
     FOR    ${object_name}    IN    @{tooling_objects}
-        ${count}    ${reason}    ${duration}=    Read Query Artifact
+        ${count}    ${reason}    ${duration}    ${details}=    Read Query Artifact
         ...    ${artifact_directory}
         ...    ${object_name}
         ...    ${TRUE}
@@ -281,20 +295,21 @@ Load Query Artifacts
             Set To Dictionary    ${tooling_results}    ${object_name}=${count}
         ELSE
             Set To Dictionary    ${skipped_reasons}    TOOLING::${object_name}=${reason}
+            Set To Dictionary    ${skipped_details}    TOOLING::${object_name}=${details}
         END
     END
-    RETURN    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${durations}
+    RETURN    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${skipped_details}    ${durations}
 
 Get Operational Failures
     [Documentation]    Return skipped entries that indicate an unhealthy scan rather than unsupported objects.
     [Arguments]    ${skipped_reasons}
     ${failures}=    Create Dictionary
     FOR    ${object_name}    ${reason}    IN    &{skipped_reasons}
-        ${is_operational}=    Run Keyword And Return Status
+        ${is_expected}=    Run Keyword And Return Status
         ...    List Should Contain Value
-        ...    ${OPERATIONAL_FAILURE_REASONS}
+        ...    ${EXPECTED_SKIP_REASONS}
         ...    ${reason}
-        IF    ${is_operational}
+        IF    not ${is_expected}
             Set To Dictionary    ${failures}    ${object_name}=${reason}
         END
     END

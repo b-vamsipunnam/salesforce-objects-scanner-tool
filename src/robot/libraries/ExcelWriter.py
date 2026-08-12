@@ -51,19 +51,24 @@ def load_json(path):
 
 
 def main():
-    if len(sys.argv) != 6:
-        print("Usage: excel_writer.py data_json tooling_json skipped_json durations_json output_file")
+    if len(sys.argv) != 7:
+        print(
+            "Usage: excel_writer.py data_json tooling_json skipped_json "
+            "skipped_details_json durations_json output_file"
+        )
         sys.exit(1)
 
     data_results = load_json(sys.argv[1])
     tooling_results = load_json(sys.argv[2])
     skipped_reasons = load_json(sys.argv[3])
-    durations_seconds = load_json(sys.argv[4])
-    output_file = sys.argv[5]
+    skipped_details = load_json(sys.argv[4])
+    durations_seconds = load_json(sys.argv[5])
+    output_file = sys.argv[6]
     for name, value in (
         ("data results", data_results),
         ("tooling results", tooling_results),
         ("skipped reasons", skipped_reasons),
+        ("skipped details", skipped_details),
         ("durations", durations_seconds),
     ):
         if not isinstance(value, dict):
@@ -84,7 +89,7 @@ def main():
 
     write_headers(data_sheet, ["Object Name", "Record Count"])
     write_headers(tooling_sheet, ["Tooling Object Name", "Record Count"])
-    write_headers(skipped_sheet, ["Object Name", "Skip Reason"])
+    write_headers(skipped_sheet, ["Object Name", "Skip Reason", "Salesforce Error Details"])
     write_headers(duration_sheet, ["Object Name", "Duration (Seconds)"])
 
     for row, (k, v) in enumerate(sorted(data_results.items()), 2):
@@ -98,6 +103,10 @@ def main():
     for row, (k, v) in enumerate(sorted(skipped_reasons.items()), 2):
         skipped_sheet.cell(row=row, column=1).value = k
         skipped_sheet.cell(row=row, column=2).value = v
+        details = skipped_details.get(k, {})
+        skipped_sheet.cell(row=row, column=3).value = json.dumps(
+            details, ensure_ascii=False, sort_keys=True
+        )
 
     for row, (k, v) in enumerate(sorted(durations_seconds.items()), 2):
         duration_sheet.cell(row=row, column=1).value = k

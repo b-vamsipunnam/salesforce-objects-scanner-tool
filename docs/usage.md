@@ -74,8 +74,12 @@ their isolated results into the final reports.
 | `PABOT_SHARDS_PER_PROCESS` | No | `4` | Queued suites per worker for load balancing |
 | `INCLUDE_TOOLING` | No | `true` | Discover and include queryable Tooling API objects |
 | `VERBOSE_OBJECT_RESULTS` | No | `false` | Print each successful object count to the console and Pabot log |
+| `SF_COMMAND_TIMEOUT_SECONDS` | No | `120` | Timeout for Salesforce CLI setup and discovery commands |
 | `MAX_QUERY_TIMEOUT_SECONDS` | No | `120` | Timeout for a normal object query |
 | `CONNECTEDAPP_TIMEOUT` | No | `180` | Extended timeout for known slow objects |
+| `SF_TRANSIENT_RETRIES` | No | `2` | Retries for external-provider, request-limit, and unknown platform errors |
+| `SF_RETRY_BACKOFF_SECONDS` | No | `2.0` | Initial retry delay; each subsequent delay doubles |
+| `ALLOW_DISABLED_DATACLOUD` | No | `false` | Treat verified disabled Data Cloud access as an intentional expected skip |
 | `SCAN_OUTPUT_ROOT` | No | `<repository>/output` | Root directory for completed scans |
 | `FAIL_ON_OPERATIONAL_ERRORS` | No | `true` | Fail after saving reports when operational errors occur |
 
@@ -123,12 +127,38 @@ reports request-limit or transient service errors.
 The worker count is fixed when Pabot starts. It cannot be changed during an active
 run.
 
+`PABOT_SHARDS_PER_PROCESS` controls how many balanced suites are queued per
+worker. The default of `4` gives Pabot smaller work units so a few slow objects do
+not leave other workers idle near the end of a scan.
+
+### Performance and benchmarking
+
+Runtime depends on discovered object count, Salesforce API capacity, CLI startup
+overhead, query complexity, network latency, and worker count. More workers are
+not automatically faster. Compare worker settings against the same org during a
+similar activity window and stop increasing concurrency when request-limit or
+transient service errors rise.
+
+Use this template to record comparable runs. The project does not publish a
+universal runtime expectation:
+
+| Org Type | Objects Discovered | Data Counted | Tooling Counted | Workers | Runtime | Notes |
+|---|---:|---:|---:|---:|---:|---|
+| _Fill in_ | — | — | — | — | — | _API capacity, network conditions, and relevant context_ |
+
+For a repeatable benchmark, run the same scan with 1, 2, 4, 8, and 16 workers,
+record the results above, and retain the related `Skipped Objects` worksheet.
+
 ## Follow progress
 
 By default, `VERBOSE_OBJECT_RESULTS` is false. The console shows scan progress,
 skipped objects, operational failures, and the final summary without printing
 every successful count. Set `--variable VERBOSE_OBJECT_RESULTS:true` when
 detailed per-object output is useful for troubleshooting.
+
+```bash
+robot -d results --variable ORG_ALIAS:MyOrg --variable VERBOSE_OBJECT_RESULTS:true src/robot/orchestrator/scan.robot
+```
 
 Pabot's console output is saved inside the isolated run directory. During
 execution, each finished object creates one JSON artifact beneath:
@@ -147,6 +177,22 @@ uses those artifacts to verify that every scheduled object produced a result.
 
 Every run creates an isolated directory under `output/`.
 
+```text
+output/Run_<date-time>_<id>/
+|-- json/
+|   |-- data_<date-time>.json
+|   |-- tooling_<date-time>.json
+|   |-- skipped_<date-time>.json
+|   |-- skipped_details_<date-time>.json
+|   `-- durations_<date-time>.json
+|-- pabot/
+|   |-- artifacts/
+|   |-- results/
+|   |-- workers/
+|   `-- pabot-console.log
+`-- SF_Objects_<date-time>.xlsx
+```
+
 ### Final JSON files
 
 | File | Contents |
@@ -154,6 +200,7 @@ Every run creates an isolated directory under `output/`.
 | `data_<date-time>.json` | Successful standard and custom object counts |
 | `tooling_<date-time>.json` | Successful Tooling API object counts |
 | `skipped_<date-time>.json` | Objects that could not be counted and their reasons |
+| `skipped_details_<date-time>.json` | Sanitized Salesforce error code and message for each skipped object |
 | `durations_<date-time>.json` | Query duration for every processed object |
 
 ### Excel workbook
@@ -167,6 +214,33 @@ Every run creates an isolated directory under `output/`.
 
 Headers are frozen and filterable. Sort the record-count column from largest to
 smallest to identify likely large-data-volume objects.
+The `Skipped Objects` worksheet includes the classification reason and Salesforce
+error details used to make that classification. Targeted redaction replaces
+recognized authentication URLs, session IDs, authorization headers, and tokens
+with stable `[REDACTED_...]` placeholders before persistence. Treat all external
+error text as potentially sensitive and restrict access to scan artifacts.
+
+#### Mandatory `Skipped Objects` review
+
+Whoever runs the scanner is responsible for opening the generated Excel workbook
+and reviewing **every row** in the `Skipped Objects` worksheet. This review is
+required after every run, regardless of whether the Robot test passed or failed.
+
+A passing run only confirms that the scanner found no unexpected operational
+failure. It does not guarantee that every discovered object was counted. Before
+using the workbook for an audit, migration, archival decision, or deletion:
+
+1. Check every skipped object and its recorded reason.
+2. Confirm that expected limitations, such as `COUNT_NOT_SUPPORTED`,
+   `QUERY_NOT_SUPPORTED`, or `RESTRICTIVE_FILTER_REQUIRED`, are acceptable for
+   the intended use.
+3. Investigate permission, authentication, timeout, API-limit, discovery, and
+   unknown errors rather than assuming the missing counts are zero.
+4. Rerun the scan after correcting actionable issues, and retain the reviewed
+   workbook with the related Robot report.
+
+Do not represent the scan as complete until the `Skipped Objects` worksheet has
+been reviewed and its omissions have been accepted by the responsible operator.
 
 ### Robot and Pabot reports
 
@@ -176,23 +250,26 @@ The top-level Robot report is written to the directory supplied with `-d`, usual
 
 ## Skip reasons
 
-An unsupported query does not stop the scan. It is recorded in the skipped report
-with a reason such as:
+An unsupported query does not stop the scan. Expected limitations are recognized
+only when the object identity, Salesforce error code, and message pattern match a
+verified rule. Expected reasons include:
 
 - `COUNT_NOT_SUPPORTED`
-- `REQUIRES_WHERE_StatType`
-- `INVALID_TYPE`
-- `INSUFFICIENT_ACCESS`
-- `REQUEST_LIMIT_EXCEEDED`
-- `TIMEOUT`
-- `TOOLING_DISCOVERY_FAILED`
-- `WORKER_ERROR`
-- `OTHER_ERROR`
+- `QUERY_NOT_SUPPORTED`
+- `BIG_OBJECT_COUNT_UNSUPPORTED`
+- `RESTRICTIVE_FILTER_REQUIRED`
+- `DATACLOUD_INTENTIONALLY_DISABLED`
 
-Request limits, timeouts, discovery failures, worker errors, invalid CLI JSON,
-expired sessions, and unknown CLI errors are operational failures. The scanner
-finishes writing its reports and then fails by default so automation does not
+Everything else is operational by default, including unverified
+`MALFORMED_QUERY`, `INVALID_TYPE`, `INSUFFICIENT_ACCESS`, and
+`EXTERNAL_OBJECT_EXCEPTION` responses. External-provider, request-limit, and
+unknown platform failures are retried before being recorded as operational.
+The scanner finishes writing its reports and then fails so automation does not
 mistake a partial scan for a complete one.
+
+Keep `ALLOW_DISABLED_DATACLOUD` false unless Data Cloud is intentionally outside
+the scope of the scan. When false, disabled Data Cloud access remains an
+operational configuration or permission problem.
 
 Review permission-related failures using the same Salesforce user that ran the
 scan. Some Salesforce objects cannot support `COUNT()` regardless of permissions.
@@ -259,13 +336,3 @@ robocop check src/robot ci/robot
 
 A full scanner run requires Salesforce CLI authentication and the permissions of
 the target user.
-
-### Opt-in live Salesforce workflow
-
-`.github/workflows/live-salesforce-validation.yml` is manual-only and is not part
-of normal CI. It requires a GitHub Environment named
-`salesforce-live-validation` with an `SF_AUTH_URL` secret for an approved
-non-production org. The workflow checks that the secret exists, authenticates as
-`live-validation`, runs a one-object Pabot-backed scanner validation, and uploads
-the Robot results. Keep the environment protected and never store or expose the
-auth URL in repository content or workflow inputs.
