@@ -88,19 +88,23 @@ Save Results To Excel
     ...    ${data_results}
     ...    ${tooling_results}
     ...    ${skipped_reasons}
+    ...    ${skipped_details}
     ...    ${durations}
     ${run_id}=    Generate Run Id
     ${data_file}=    Normalize Path    ${json_directory}${/}data_${run_id}.json
     ${tooling_file}=    Normalize Path    ${json_directory}${/}tooling_${run_id}.json
     ${skipped_file}=    Normalize Path    ${json_directory}${/}skipped_${run_id}.json
+    ${skipped_details_file}=    Normalize Path    ${json_directory}${/}skipped_details_${run_id}.json
     ${durations_file}=    Normalize Path    ${json_directory}${/}durations_${run_id}.json
     ${data_json}=    Evaluate    json.dumps($data_results)    modules=json
     ${tooling_json}=    Evaluate    json.dumps($tooling_results)    modules=json
     ${skipped_json}=    Evaluate    json.dumps($skipped_reasons)    modules=json
+    ${skipped_details_json}=    Evaluate    json.dumps($skipped_details)    modules=json
     ${durations_json}=    Evaluate    json.dumps($durations)    modules=json
     Create File    ${data_file}    ${data_json}
     Create File    ${tooling_file}    ${tooling_json}
     Create File    ${skipped_file}    ${skipped_json}
+    Create File    ${skipped_details_file}    ${skipped_details_json}
     Create File    ${durations_file}    ${durations_json}
     ${result}=    Run Process
     ...    ${PYTHON}
@@ -108,6 +112,7 @@ Save Results To Excel
     ...    ${data_file}
     ...    ${tooling_file}
     ...    ${skipped_file}
+    ...    ${skipped_details_file}
     ...    ${durations_file}
     ...    ${workbook_path}
     Log To Console    ${result.stdout}

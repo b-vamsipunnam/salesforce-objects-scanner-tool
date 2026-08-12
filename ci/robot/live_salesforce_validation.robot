@@ -16,7 +16,7 @@ Validate One Live Salesforce Object
     Create Directory    ${run_directory}
     @{data_objects}=    Create List    Organization
     @{tooling_objects}=    Create List
-    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${durations}=
+    ${data_results}    ${tooling_results}    ${skipped_reasons}    ${skipped_details}    ${durations}=
     ...    Run Object Queries With Pabot
     ...    ${data_objects}
     ...    ${tooling_objects}
@@ -24,5 +24,6 @@ Validate One Live Salesforce Object
     Dictionary Should Contain Item    ${data_results}    Organization    ${1}
     Should Be Empty    ${tooling_results}
     Should Be Empty    ${skipped_reasons}
+    Should Be Empty    ${skipped_details}
     Dictionary Should Contain Key    ${durations}    Organization
     Validate Scan Quality    ${skipped_reasons}

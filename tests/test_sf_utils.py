@@ -1,7 +1,14 @@
+import json
 import unittest
 from unittest.mock import patch
 
-from src.robot.libraries.SfUtils import parse_sf_json, resolve_executable
+from src.robot.libraries.SfUtils import (
+    classify_sf_error,
+    get_sf_error_details,
+    parse_sf_json,
+    resolve_executable,
+    sanitize_sf_text,
+)
 
 
 class SfUtilsTests(unittest.TestCase):
@@ -27,6 +34,207 @@ class SfUtilsTests(unittest.TestCase):
     def test_rejects_output_without_json(self):
         with self.assertRaises(ValueError):
             parse_sf_json("warning only")
+
+    def test_classifies_only_matching_query_limitation(self):
+        raw = (
+            '{"name":"INVALID_TYPE_FOR_OPERATION",'
+            '"message":"entity type AccountChangeEvent does not support query"}'
+        )
+        self.assertEqual(
+            classify_sf_error(raw, "AccountChangeEvent"),
+            "QUERY_NOT_SUPPORTED",
+        )
+        self.assertEqual(
+            classify_sf_error(raw, "Account"),
+            "INVALID_TYPE_FOR_OPERATION",
+        )
+
+    def test_same_object_with_wrong_message_remains_operational(self):
+        raw = (
+            '{"name":"INVALID_TYPE_FOR_OPERATION",'
+            '"message":"AccountChangeEvent failed for an unrelated reason"}'
+        )
+        self.assertEqual(
+            classify_sf_error(raw, "AccountChangeEvent"),
+            "INVALID_TYPE_FOR_OPERATION",
+        )
+
+    def test_verified_run_restrictions_require_exact_rule_match(self):
+        cases = (
+            (
+                "ContentDocumentLink",
+                False,
+                "MALFORMED_QUERY",
+                "Implementation restriction: ContentDocumentLink requires a filter by Id.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "ContentFolderItem",
+                False,
+                "MALFORMED_QUERY",
+                "Implementation restriction: ContentFolderItem requires a filter by Id.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "ContentFolderMember",
+                False,
+                "MALFORMED_QUERY",
+                "Implementation restriction: ContentFolderMember requires a filter by Id.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "ContentVersionRenditionContent",
+                False,
+                "MALFORMED_QUERY",
+                "ContentVersionId must be specified in your query.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "IdeaComment",
+                False,
+                "MALFORMED_QUERY",
+                "Implementation restriction. When querying the Idea Comment object, you must filter by IdeaId.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "Vote",
+                False,
+                "MALFORMED_QUERY",
+                "Implementation restriction: When querying the Vote object, you must filter by ParentId.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "SubscriberPackage",
+                True,
+                "MALFORMED_QUERY",
+                "Implementation restriction: You can only perform queries of the form Id='<some_value>'.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "DataStatistics",
+                False,
+                "EXTERNAL_OBJECT_UNSUPPORTED_EXCEPTION",
+                "Where clauses should contain StatType",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "DatacloudDandBCompany",
+                False,
+                "EXTERNAL_OBJECT_UNSUPPORTED_EXCEPTION",
+                "Datacloud D&B company is not filterable without a criteria.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "FlexQueueItem",
+                False,
+                "EXTERNAL_OBJECT_UNSUPPORTED_EXCEPTION",
+                "The WHERE clause must contain a JobType field expression.",
+                "RESTRICTIVE_FILTER_REQUIRED",
+            ),
+            (
+                "EventBusSubscriber",
+                False,
+                "EXTERNAL_OBJECT_UNSUPPORTED_EXCEPTION",
+                "COUNT() query could not be processed",
+                "QUERY_NOT_SUPPORTED",
+            ),
+            (
+                "PendingOrderSummary",
+                False,
+                "EXTERNAL_OBJECT_UNSUPPORTED_EXCEPTION",
+                "COUNT() query could not be processed",
+                "QUERY_NOT_SUPPORTED",
+            ),
+            (
+                "DatacloudAddress",
+                False,
+                "EXTERNAL_OBJECT_EXCEPTION",
+                "SObject - DATACLOUD_ADDRESS : Transient queries are not implemented",
+                "QUERY_NOT_SUPPORTED",
+            ),
+        )
+        for object_name, tooling, error_name, message, expected in cases:
+            raw = json.dumps({"name": error_name, "message": message})
+            with self.subTest(object_name=object_name, tooling=tooling):
+                self.assertEqual(classify_sf_error(raw, object_name, tooling), expected)
+                self.assertEqual(
+                    classify_sf_error(raw, f"Wrong{object_name}", tooling),
+                    error_name,
+                )
+                wrong_message = json.dumps(
+                    {"name": error_name, "message": "Different operational failure"}
+                )
+                self.assertEqual(
+                    classify_sf_error(wrong_message, object_name, tooling),
+                    error_name,
+                )
+
+    def test_malformed_query_is_operational_unless_verified(self):
+        generic = '{"name":"MALFORMED_QUERY","message":"unexpected syntax"}'
+        verified = (
+            '{"name":"MALFORMED_QUERY",'
+            '"message":"FieldDefinition: a filter on a reified column is required [DurableId]"}'
+        )
+        self.assertEqual(classify_sf_error(generic, "Account"), "MALFORMED_QUERY")
+        self.assertEqual(
+            classify_sf_error(verified, "FieldDefinition"),
+            "RESTRICTIVE_FILTER_REQUIRED",
+        )
+
+    def test_datacloud_skip_requires_explicit_policy(self):
+        raw = (
+            '{"name":"DATACLOUD_API_DISABLED_EXCEPTION",'
+            '"message":"Your organization doesn\'t have permission to access the Data.com API"}'
+        )
+        self.assertEqual(
+            classify_sf_error(raw, "DatacloudCompany", allow_disabled_datacloud=False),
+            "DATACLOUD_API_DISABLED_EXCEPTION",
+        )
+        self.assertEqual(
+            classify_sf_error(raw, "DatacloudCompany", allow_disabled_datacloud=True),
+            "DATACLOUD_INTENTIONALLY_DISABLED",
+        )
+
+    def test_sanitizes_structured_and_unstructured_errors(self):
+        structured = get_sf_error_details(
+            '{"name":"UNKNOWN_EXCEPTION","message":"ErrorId 123","stack":"secret"}'
+        )
+        self.assertEqual(
+            structured, {"name": "UNKNOWN_EXCEPTION", "message": "ErrorId 123"}
+        )
+        unstructured = get_sf_error_details("Bearer abc123 access_token=xyz")
+        self.assertNotIn("abc123", unstructured["message"])
+        self.assertNotIn("xyz", unstructured["message"])
+
+    def test_redacts_encoded_mixed_case_and_salesforce_credentials(self):
+        raw = (
+            "AuThOrIzAtIoN: bEaReR mixedCaseSecret "
+            "authorization%3A%20bearer%20encodedSecret "
+            "force://client:secret:refresh@example.my.salesforce.com "
+            "force%3A%2F%2Fclient%3Asecret%3Arefresh%40example "
+            "sessionId=00Dxx0000000001!longSessionSecret "
+            "access_token%3DencodedAccessSecret"
+        )
+        sanitized = sanitize_sf_text(raw)
+        for secret in (
+            "mixedCaseSecret",
+            "encodedSecret",
+            "client:secret:refresh",
+            "longSessionSecret",
+            "encodedAccessSecret",
+        ):
+            self.assertNotIn(secret, sanitized)
+        self.assertIn("[REDACTED_BEARER_TOKEN]", sanitized)
+        self.assertIn("[REDACTED_AUTH_URL]", sanitized)
+        self.assertIn("[REDACTED_SESSION_ID]", sanitized)
+        self.assertIn("[REDACTED_ACCESS_TOKEN]", sanitized)
+
+    def test_caps_all_retained_message_text(self):
+        details = get_sf_error_details(
+            json.dumps({"name": "ERROR", "message": "x" * 10_000})
+        )
+        self.assertLessEqual(len(details["message"]), 4000)
+        self.assertTrue(details["message"].endswith("...[TRUNCATED]"))
 
     @patch("src.robot.libraries.SfUtils.shutil.which", return_value=None)
     def test_missing_executable_has_clear_error(self, _):

@@ -59,6 +59,24 @@ change affects Salesforce behavior:
 robot -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
 ```
 
+### Optional live Salesforce validation workflow
+
+Normal CI does not use Salesforce credentials. Maintainers can manually run the
+`Live Salesforce Validation` GitHub Actions workflow against an approved
+non-production org.
+
+1. Create a GitHub Environment named `salesforce-live-validation`.
+2. Add an environment secret named `SF_AUTH_URL` containing an SFDX auth URL for
+   a sandbox, scratch org, or other approved non-production org.
+3. Add appropriate environment protection rules or required reviewers.
+4. Open **Actions → Live Salesforce Validation → Run workflow**.
+
+The workflow fails before authentication when the secret is missing. Never put
+the auth URL in repository files, workflow inputs, logs, issues, or pull
+requests. The workflow authenticates with the alias `live-validation`, runs a
+one-object Pabot-backed validation, and uploads the Robot results as workflow
+artifacts.
+
 ---
 ## Development Workflow
 
