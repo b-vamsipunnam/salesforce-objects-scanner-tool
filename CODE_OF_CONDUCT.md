@@ -1,84 +1,47 @@
 # Code of Conduct
 
-## Our Pledge
+## Our commitment
 
-We, as contributors and maintainers of the Salesforce Objects Scanner, pledge to make participation in this project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, education, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We want this project to be a welcoming place to contribute, regardless of age,
+body size, disability, ethnicity, gender identity or expression, experience,
+education, nationality, appearance, race, religion, or sexual identity and
+orientation.
 
-We are committed to providing a welcoming, inclusive, and professional environment.
+## Expected behavior
 
----
+Be respectful, patient, and constructive. Discuss the work rather than the
+person, assume good intent, and accept feedback without making the conversation
+personal. Help other contributors feel comfortable asking questions and sharing
+ideas.
 
-## Our Standards
+The following behavior is not acceptable:
 
-Examples of behavior that contributes to a positive environment include:
-
-- Being respectful and considerate
-- Using welcoming and inclusive language
-- Being patient with others
-- Accepting constructive feedback
-- Focusing on what is best for the community
-- Showing empathy toward other members
-
-Examples of unacceptable behavior include:
-
-- Harassment, discrimination, or hate speech
-- Trolling, insulting, or derogatory comments
-- Publishing others’ private information without permission
-- Personal or political attacks
-- Any form of intimidation
-
----
-
-## Our Responsibilities
-
-Project maintainers are responsible for:
-
-- Clarifying and enforcing standards of acceptable behavior
-- Taking appropriate and fair corrective action
-- Protecting reporters of misconduct
-
-Maintainers have the right to remove, edit, or reject contributions that violate this Code of Conduct.
-
----
+- harassment, discrimination, or intimidation;
+- insults, trolling, threats, or personal attacks;
+- sexualized language or unwanted attention;
+- publishing another person's private information without permission; or
+- conduct that would reasonably discourage someone from participating.
 
 ## Scope
 
-This Code of Conduct applies within all project spaces, including:
-
-- GitHub repositories
-- Issues and pull requests
-- Discussions and comments
-- Community forums
-- Private communications related to the project
-
-It also applies when representing the project in public spaces.
-
----
+This policy applies to repository issues, pull requests, discussions, review
+comments, and project-related private communication. It also applies when
+someone is representing the project in public.
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainer.
+Maintainers may edit or remove comments, commits, code, issues, and other
+contributions that violate this policy. They may also temporarily or permanently
+restrict a person's participation when necessary.
 
-All reports will be reviewed promptly and handled with discretion and confidentiality.
+To report a problem, contact the maintainer privately. If no private contact
+method is listed on the maintainer's GitHub profile, open a minimal issue asking
+for a private channel. Do not put sensitive details in that issue.
 
-**Maintainer:** Bhimeswara Vamsi Punnam  
-**Contact Method:** Open a minimal repository issue requesting a private communication channel; do not include sensitive details.
-
-No retaliation against reporters will be tolerated.
-
-### Enforcement Process
-
-* The maintainer will acknowledge receipt of the report.
-* An initial assessment will be conducted.
-* Appropriate corrective action will be determined.
-* The reporter will be informed of the outcome where appropriate.
-
----
+Reports will be handled as privately as possible. Retaliation against someone
+who raises a good-faith concern is not allowed.
 
 ## Attribution
 
-This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org), version 2.1.
-
----
-
-Thank you for helping create a respectful and productive community!
+This policy is adapted from the [Contributor Covenant, version
+2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct.html).

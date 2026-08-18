@@ -1,107 +1,53 @@
 # Security Policy
 
-## Reporting Security Vulnerabilities
+## Reporting a vulnerability
 
-We take the security of this project seriously and appreciate responsible disclosure.
+Please do not open a public issue for a security problem.
 
-If you discover a security vulnerability, please report it privately so it can be addressed promptly.
+Use **Security → Report a vulnerability** when private vulnerability reporting
+is available for this repository. Otherwise, contact the maintainer privately
+through the contact details on their GitHub profile. If neither option is
+available, open an issue that asks for a private contact channel without
+describing the vulnerability.
 
-### Please do NOT:
-- Open a public GitHub issue
-- Share details publicly (e.g., social media, forums)
-- Exploit the vulnerability
+A useful private report includes:
 
----
+- what is affected and why it matters;
+- the version or commit you tested;
+- the smallest set of steps needed to reproduce the problem; and
+- a suggested fix or mitigation, if you have one.
 
-## How to Report
+Remove Salesforce credentials, customer data, org URLs, and unrelated log
+content. Do not access data that is not yours or publish details before a fix is
+available.
 
-**Preferred channel:** If GitHub private vulnerability reporting is enabled for
-this repository, use **Security → Report a vulnerability**. This keeps the report
-and any supporting evidence private.
+## Credentials and scan output
 
-**Fallback:** Use a private contact method listed on the maintainer's GitHub
-profile. If no private method is available, open a minimal issue asking the
-maintainer to establish a secure communication channel. Do not include the
-vulnerability description, reproduction steps, logs, proof of concept,
-credentials, or other sensitive details in that issue.
+The scanner uses Salesforce CLI authentication. Credentials should never be
+stored in the repository or passed as Robot variables.
 
-We aim to acknowledge reports within **72 hours** and provide updates during the investigation.
+- Do not commit access tokens, SFDX auth URLs, session IDs, passwords, or OAuth
+  secrets.
+- Keep `.sf/`, `.sfdx/`, auth files, Robot reports, and `output/` out of Git.
+- Use a non-production org for development and live validation.
+- Limit access to generated workbooks, JSON files, and logs. They can reveal
+  object names, record counts, and Salesforce error details.
+- Rotate or revoke credentials if they may have been exposed.
 
-### Include the following details:
-- Description of the vulnerability  
-- Steps to reproduce  
-- Proof of concept (if available)  
-- Impact assessment  
-- Affected versions  
-- Suggested fixes (if any)  
+The scanner redacts recognized tokens, authorization headers, and authentication
+URLs from Salesforce errors. That is a safeguard, not a reason to treat output
+as public data.
 
----
+The live GitHub Actions workflow reads `SF_AUTH_URL` from the protected
+`salesforce-live-validation` environment, writes it to a restricted temporary
+file, and removes the file after login. The secret must point to an approved
+non-production org.
 
-## Security Best Practices
+## Supported code
 
-### Credentials & Secrets
-- Never commit sensitive data such as:
-  - Access tokens  
-  - OAuth secrets  
-  - Passwords  
-- Use environment variables or secure vaults  
-- Ensure sensitive files are included in `.gitignore`
+Security fixes are made on the current `main` branch. This project does not
+maintain older release branches.
 
----
-
-### Salesforce Access
-- Follow the principle of least privilege  
-- Avoid using production admin credentials  
-- Rotate tokens regularly  
-- Log out of unused sessions  
-
----
-
-### Dependencies
-- Keep dependencies up to date  
-- Monitor for known vulnerabilities  
-- Use trusted and maintained packages  
-
----
-
-### Local Environment
-- Secure your local machine  
-- Avoid running the tool on shared or public systems  
-- Encrypt sensitive files when needed  
-- Restrict access to configuration files  
-
----
-
-## Disclosure Process
-
-We follow a responsible disclosure approach:
-
-1. Report received privately  
-2. Vulnerability verified  
-3. Fix developed and tested  
-4. Patch released  
-5. Public disclosure (if appropriate)  
-
-Contributors who report issues responsibly may be credited (with permission).
-
----
-
-## Security Updates
-
-Security updates and advisories will be shared via:
-- GitHub Releases  
-- GitHub Security Advisories, when applicable
-- Project documentation  
-
-For critical issues, CVE identifiers may be requested when appropriate.
-
----
-
-## Disclaimer
-
-This project is provided “as is” without warranty.  
-Users are responsible for securing their environments, credentials, and data.
-
----
-
-Thank you for helping keep this project secure.
+This project is provided under the [MIT License](LICENSE). Operators remain
+responsible for their Salesforce access, local environment, and generated
+files.
