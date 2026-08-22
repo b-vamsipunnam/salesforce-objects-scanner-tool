@@ -69,7 +69,7 @@ Smoke - Large Discovery Output Does Not Deadlock
 
 Smoke - Unexpected Worker Error Preserves Artifact
     VAR    ${SF_CLI}    ${PARALLEL_SMOKE_DIR}${/}missing-sf    scope=TEST
-    VAR    ${POLL_INTERVAL_SECONDS}    Bearer rawWorkerSecret    scope=TEST
+    VAR    ${POLL_INTERVAL_SECONDS}    access_token=rawWorkerSecret    scope=TEST
     @{data_objects}=    Create List    Account
     @{tooling_objects}=    Create List
     ${data}    ${tooling}    ${skipped}    ${details}    ${durations}=
@@ -83,7 +83,7 @@ Smoke - Unexpected Worker Error Preserves Artifact
     Dictionary Should Contain Key    ${durations}    Account
     Dictionary Should Contain Key    ${details}    Account
     Should Not Contain    ${details}[Account][message]    rawWorkerSecret
-    Should Contain    ${details}[Account][message]    [REDACTED_BEARER_TOKEN]
+    Should Contain    ${details}[Account][message]    [REDACTED_ACCESS_TOKEN]
 
 Smoke - Pabot Workers Receive Query Timing Configuration
     [Documentation]    Verify scalar and list settings cross the isolated worker-process boundary.
