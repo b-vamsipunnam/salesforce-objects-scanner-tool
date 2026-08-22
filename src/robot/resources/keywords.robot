@@ -18,6 +18,7 @@ Normalize Scanner Configuration
     ...    ${sf_command_timeout_value}=${SF_COMMAND_TIMEOUT_SECONDS}
     ...    ${query_timeout_value}=${MAX_QUERY_TIMEOUT_SECONDS}
     ...    ${slow_timeout_value}=${CONNECTEDAPP_TIMEOUT}
+    ...    ${poll_interval_value}=${POLL_INTERVAL_SECONDS}
     ...    ${verbose_value}=${VERBOSE_OBJECT_RESULTS}
     ...    ${retry_value}=${SF_TRANSIENT_RETRIES}
     ...    ${backoff_value}=${SF_RETRY_BACKOFF_SECONDS}
@@ -31,6 +32,7 @@ Normalize Scanner Configuration
     ${sf_command_timeout}=    Convert To Integer    ${sf_command_timeout_value}
     ${query_timeout}=    Convert To Integer    ${query_timeout_value}
     ${slow_timeout}=    Convert To Integer    ${slow_timeout_value}
+    ${poll_interval}=    Convert To Number    ${poll_interval_value}
     ${retries}=    Convert To Integer    ${retry_value}
     ${retry_backoff}=    Convert To Number    ${backoff_value}
     Should Be True    ${processes} > 0    PABOT_PROCESSES must be greater than zero.
@@ -38,6 +40,7 @@ Normalize Scanner Configuration
     Should Be True    ${sf_command_timeout} > 0    SF_COMMAND_TIMEOUT_SECONDS must be greater than zero.
     Should Be True    ${query_timeout} > 0    MAX_QUERY_TIMEOUT_SECONDS must be greater than zero.
     Should Be True    ${slow_timeout} > 0    CONNECTEDAPP_TIMEOUT must be greater than zero.
+    Should Be True    ${poll_interval} > 0    POLL_INTERVAL_SECONDS must be greater than zero.
     Should Be True    ${retries} >= 0    SF_TRANSIENT_RETRIES must not be negative.
     Should Be True    ${retry_backoff} >= 0    SF_RETRY_BACKOFF_SECONDS must not be negative.
     VAR    ${INCLUDE_TOOLING}    ${include_tooling}    scope=SUITE
@@ -49,6 +52,7 @@ Normalize Scanner Configuration
     VAR    ${SF_COMMAND_TIMEOUT_SECONDS}    ${sf_command_timeout}    scope=SUITE
     VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${query_timeout}    scope=SUITE
     VAR    ${CONNECTEDAPP_TIMEOUT}    ${slow_timeout}    scope=SUITE
+    VAR    ${POLL_INTERVAL_SECONDS}    ${poll_interval}    scope=SUITE
     VAR    ${SF_TRANSIENT_RETRIES}    ${retries}    scope=SUITE
     VAR    ${SF_RETRY_BACKOFF_SECONDS}    ${retry_backoff}    scope=SUITE
     RETURN

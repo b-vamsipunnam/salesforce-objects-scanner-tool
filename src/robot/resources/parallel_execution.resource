@@ -26,6 +26,7 @@ Run Object Queries With Pabot
     ...    ${data_objects}
     ...    ${tooling_objects}
     ${total}=    Evaluate    len($data_objects) + len($tooling_objects)
+    ${worker_config_base64}=    Build Pabot Worker Configuration    ${artifact_directory}
     Log To Console
     ...    Running ${total} object queries in ${worker_count} balanced Pabot suites with ${PABOT_PROCESSES} processes...
     ${pabot_result}=    Run Process
@@ -37,19 +38,7 @@ Run Object Queries With Pabot
     ...    --outputdir
     ...    ${pabot_output_directory}
     ...    --variable
-    ...    ORG_ALIAS:${ORG_ALIAS}
-    ...    --variable
-    ...    SF_CLI:${SF_CLI}
-    ...    --variable
-    ...    ARTIFACT_DIR:${artifact_directory}
-    ...    --variable
-    ...    VERBOSE_OBJECT_RESULTS:${VERBOSE_OBJECT_RESULTS}
-    ...    --variable
-    ...    SF_TRANSIENT_RETRIES:${SF_TRANSIENT_RETRIES}
-    ...    --variable
-    ...    SF_RETRY_BACKOFF_SECONDS:${SF_RETRY_BACKOFF_SECONDS}
-    ...    --variable
-    ...    ALLOW_DISABLED_DATACLOUD:${ALLOW_DISABLED_DATACLOUD}
+    ...    WORKER_CONFIG_BASE64:${worker_config_base64}
     ...    ${worker_directory}
     ...    stdout=${console_log}
     ...    stderr=STDOUT
@@ -69,6 +58,65 @@ Run Object Queries With Pabot
     ...    ${skipped_reasons}
     ...    ${skipped_details}
     ...    ${durations}
+
+Build Pabot Worker Configuration
+    [Documentation]    Serialize every query-worker setting into one type-safe payload.
+    [Arguments]    ${artifact_directory}
+    ${slow_objects}=    Normalize Worker List Configuration    ${SLOW_OBJECTS}
+    ${transient_reasons}=    Normalize Worker List Configuration    ${TRANSIENT_FAILURE_REASONS}
+    ${known_data_objects}=    Normalize Worker List Configuration    ${KNOWN_UNKNOWN_DATA_OBJECTS}
+    ${known_tooling_objects}=    Normalize Worker List Configuration    ${KNOWN_UNKNOWN_TOOLING_OBJECTS}
+    ${config}=    Create Dictionary
+    ...    org_alias=${ORG_ALIAS}
+    ...    sf_cli=${SF_CLI}
+    ...    artifact_dir=${artifact_directory}
+    ...    verbose_object_results=${VERBOSE_OBJECT_RESULTS}
+    ...    max_query_timeout_seconds=${MAX_QUERY_TIMEOUT_SECONDS}
+    ...    connectedapp_timeout=${CONNECTEDAPP_TIMEOUT}
+    ...    poll_interval_seconds=${POLL_INTERVAL_SECONDS}
+    ...    sf_transient_retries=${SF_TRANSIENT_RETRIES}
+    ...    sf_retry_backoff_seconds=${SF_RETRY_BACKOFF_SECONDS}
+    ...    allow_disabled_datacloud=${ALLOW_DISABLED_DATACLOUD}
+    ...    slow_objects=${slow_objects}
+    ...    transient_failure_reasons=${transient_reasons}
+    ...    known_unknown_data_objects=${known_data_objects}
+    ...    known_unknown_tooling_objects=${known_tooling_objects}
+    ${config_base64}=    Evaluate
+    ...    base64.urlsafe_b64encode(json.dumps($config, ensure_ascii=False).encode('utf-8')).decode('ascii')
+    ...    modules=json,base64
+    RETURN    ${config_base64}
+
+Normalize Worker List Configuration
+    [Documentation]    Preserve Robot lists and accept comma-separated command-line overrides.
+    [Arguments]    ${value}
+    ${is_list}=    Evaluate    isinstance($value, (list, tuple))
+    IF    ${is_list}
+        ${items}=    Evaluate    list($value)
+    ELSE
+        ${items}=    Evaluate    [item.strip() for item in str($value).split(',') if item.strip()]
+    END
+    RETURN    ${items}
+
+Apply Pabot Worker Configuration
+    [Documentation]    Restore the parent scanner configuration inside an isolated Pabot suite.
+    [Arguments]    ${config_base64}
+    ${config}=    Evaluate
+    ...    json.loads(base64.urlsafe_b64decode($config_base64).decode('utf-8'))
+    ...    modules=json,base64
+    VAR    ${ORG_ALIAS}    ${config}[org_alias]    scope=SUITE
+    VAR    ${SF_CLI}    ${config}[sf_cli]    scope=SUITE
+    VAR    ${ARTIFACT_DIR}    ${config}[artifact_dir]    scope=SUITE
+    VAR    ${VERBOSE_OBJECT_RESULTS}    ${config}[verbose_object_results]    scope=SUITE
+    VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${config}[max_query_timeout_seconds]    scope=SUITE
+    VAR    ${CONNECTEDAPP_TIMEOUT}    ${config}[connectedapp_timeout]    scope=SUITE
+    VAR    ${POLL_INTERVAL_SECONDS}    ${config}[poll_interval_seconds]    scope=SUITE
+    VAR    ${SF_TRANSIENT_RETRIES}    ${config}[sf_transient_retries]    scope=SUITE
+    VAR    ${SF_RETRY_BACKOFF_SECONDS}    ${config}[sf_retry_backoff_seconds]    scope=SUITE
+    VAR    ${ALLOW_DISABLED_DATACLOUD}    ${config}[allow_disabled_datacloud]    scope=SUITE
+    VAR    ${SLOW_OBJECTS}    ${config}[slow_objects]    scope=SUITE
+    VAR    ${TRANSIENT_FAILURE_REASONS}    ${config}[transient_failure_reasons]    scope=SUITE
+    VAR    ${KNOWN_UNKNOWN_DATA_OBJECTS}    ${config}[known_unknown_data_objects]    scope=SUITE
+    VAR    ${KNOWN_UNKNOWN_TOOLING_OBJECTS}    ${config}[known_unknown_tooling_objects]    scope=SUITE
 
 Generate Pabot Worker Suites
     [Documentation]    Create balanced Robot suites so Pabot reuses a process for many objects.
@@ -136,6 +184,9 @@ Write Pabot Worker Suite
     ...    \${ARTIFACT_DIR}
     Append To File    ${suite_path}    \n*** Test Cases ***\n
     Append To File    ${suite_path}    Query Assigned Object Batch\n
+    Append To File
+    ...    ${suite_path}
+    ...    ${SPACE * 4}Apply Pabot Worker Configuration${SPACE * 4}\${WORKER_CONFIG_BASE64}\n
     Append To File    ${suite_path}    ${SPACE * 4}${execution_line}\n
 
 Execute Object Query Batch
@@ -164,9 +215,10 @@ Execute Object Query Worker
         ${count}=    Set Variable    ${None}
         ${reason}=    Set Variable    WORKER_ERROR
         ${duration}=    Set Variable    ${0.0}
-        ${details}=    Set Variable    ${query_result}
-        Log To Console    ${object_name}: unexpected worker error: ${query_result}
-        Log    ${query_result}    level=WARN
+        ${details}=    Get Sf Error Details    ${query_result}
+        ${safe_error}=    Evaluate    json.dumps($details, ensure_ascii=False)    modules=json
+        Log To Console    ${object_name}: unexpected worker error: ${safe_error}
+        Log    ${safe_error}    level=WARN
     END
     Save Query Artifact
     ...    ${artifact_directory}

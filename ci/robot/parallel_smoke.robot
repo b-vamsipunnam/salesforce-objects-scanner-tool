@@ -69,6 +69,7 @@ Smoke - Large Discovery Output Does Not Deadlock
 
 Smoke - Unexpected Worker Error Preserves Artifact
     VAR    ${SF_CLI}    ${PARALLEL_SMOKE_DIR}${/}missing-sf    scope=TEST
+    VAR    ${POLL_INTERVAL_SECONDS}    Bearer rawWorkerSecret    scope=TEST
     @{data_objects}=    Create List    Account
     @{tooling_objects}=    Create List
     ${data}    ${tooling}    ${skipped}    ${details}    ${durations}=
@@ -81,6 +82,27 @@ Smoke - Unexpected Worker Error Preserves Artifact
     Dictionary Should Contain Item    ${skipped}    Account    WORKER_ERROR
     Dictionary Should Contain Key    ${durations}    Account
     Dictionary Should Contain Key    ${details}    Account
+    Should Not Contain    ${details}[Account][message]    rawWorkerSecret
+    Should Contain    ${details}[Account][message]    [REDACTED_BEARER_TOKEN]
+
+Smoke - Pabot Workers Receive Query Timing Configuration
+    [Documentation]    Verify scalar and list settings cross the isolated worker-process boundary.
+    ${fake_sf}=    Create Fake Sf Launcher    ${PARALLEL_SMOKE_DIR}${/}worker-config-cli
+    VAR    ${SF_CLI}    ${fake_sf}    scope=TEST
+    VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${1}    scope=TEST
+    VAR    ${CONNECTEDAPP_TIMEOUT}    ${2}    scope=TEST
+    VAR    ${POLL_INTERVAL_SECONDS}    ${0.1}    scope=TEST
+    VAR    ${SLOW_OBJECTS}    SlowObject    scope=TEST
+    @{data_objects}=    Create List    SleepObject    SlowObject
+    @{tooling_objects}=    Create List
+    ${data}    ${tooling}    ${skipped}    ${details}    ${durations}=
+    ...    Run Object Queries With Pabot
+    ...    ${data_objects}
+    ...    ${tooling_objects}
+    ...    ${PARALLEL_SMOKE_DIR}${/}worker-config-run
+    Dictionary Should Contain Item    ${data}    SlowObject    ${11}
+    Dictionary Should Contain Item    ${skipped}    SleepObject    TIMEOUT
+    Should Be Empty    ${tooling}
 
 Smoke - Query Timeout Terminates Process
     ${fake_sf}=    Create Fake Sf Launcher    ${PARALLEL_SMOKE_DIR}${/}timeout-cli

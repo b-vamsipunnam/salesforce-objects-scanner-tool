@@ -13,6 +13,7 @@ Pass settings with Robot Framework's `--variable NAME:value` option. Only
 | `SF_COMMAND_TIMEOUT_SECONDS` |                 `120` | Setup and discovery command timeout                         |
 | `MAX_QUERY_TIMEOUT_SECONDS`  |                 `120` | Normal per-object query timeout                             |
 | `CONNECTEDAPP_TIMEOUT`       |                 `180` | Extended timeout for known slow objects                     |
+| `POLL_INTERVAL_SECONDS`      |                 `1.0` | Interval used to check whether a query exceeded its timeout |
 | `SF_TRANSIENT_RETRIES`       |                   `2` | Retries for configured transient failures                   |
 | `SF_RETRY_BACKOFF_SECONDS`   |                 `2.0` | Initial exponential-backoff delay                           |
 | `ALLOW_DISABLED_DATACLOUD`   |               `false` | Accept verified disabled Data Cloud as an expected skip     |
