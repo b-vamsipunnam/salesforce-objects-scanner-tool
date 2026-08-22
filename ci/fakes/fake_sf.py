@@ -23,6 +23,17 @@ def main() -> int:
     if match and match.group(1) == "SleepObject":
         time.sleep(10)
         return 0
+    if match and match.group(1) == "SlowObject":
+        time.sleep(1.25)
+        print(
+            json.dumps(
+                {
+                    "status": 0,
+                    "result": {"records": [], "totalSize": 11, "done": True},
+                }
+            )
+        )
+        return 0
     if match and match.group(1) == "ExternalFailure":
         print(
             json.dumps(
