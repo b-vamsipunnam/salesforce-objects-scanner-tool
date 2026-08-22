@@ -40,7 +40,7 @@ counts are finished.
 
 If Tooling objects are outside your scope, disable them. If the org has API
 capacity available, try a modest increase to `PABOT_PROCESSES`. Compare one
-change at a time; more processes do not always reduce the total runtime.
+change at a time because more processes do not always reduce the total runtime.
 
 ## Many queries hit `REQUEST_LIMIT_EXCEEDED`
 

@@ -1,6 +1,6 @@
 # Pull Request
 
-Thank you for your contribution! Please provide the details below.
+Provide the details below so reviewers can understand and verify the change.
 
 ---
 
@@ -44,7 +44,3 @@ Fixes #<issue-number> (if applicable)
 
 ## Notes (Optional)
 Add any additional context, logs, or screenshots.
-
----
-
-Thank you for contributing!

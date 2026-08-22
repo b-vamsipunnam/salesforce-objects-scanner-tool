@@ -75,7 +75,7 @@ Robot's `log.html` and `report.html` are written to the directory passed with
 ## Review the skipped objects
 
 Check every row in `Skipped Objects`, even when Robot reports a passing run.
-Some Salesforce objects do not support `COUNT()` or require a filter; those
+Some Salesforce objects do not support `COUNT()` or require a filter. Those
 known cases are allowed to pass. Authentication, permissions, API limits,
 timeouts, and unrecognized errors still need attention.
 

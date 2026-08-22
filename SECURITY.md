@@ -12,10 +12,10 @@ describing the vulnerability.
 
 A useful private report includes:
 
-- what is affected and why it matters;
-- the version or commit you tested;
-- the smallest set of steps needed to reproduce the problem; and
-- a suggested fix or mitigation, if you have one.
+- What is affected and why it matters
+- The version or commit you tested
+- The smallest set of steps needed to reproduce the problem
+- A suggested fix or mitigation, if you have one
 
 Remove Salesforce credentials, customer data, org URLs, and unrelated log
 content. Do not access data that is not yours or publish details before a fix is

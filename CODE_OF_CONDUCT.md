@@ -16,11 +16,11 @@ ideas.
 
 The following behavior is not acceptable:
 
-- harassment, discrimination, or intimidation;
-- insults, trolling, threats, or personal attacks;
-- sexualized language or unwanted attention;
-- publishing another person's private information without permission; or
-- conduct that would reasonably discourage someone from participating.
+- Harassment, discrimination, or intimidation
+- Insults, trolling, threats, or personal attacks
+- Sexualized language or unwanted attention
+- Publishing another person's private information without permission
+- Conduct that would reasonably discourage someone from participating
 
 ## Scope
 

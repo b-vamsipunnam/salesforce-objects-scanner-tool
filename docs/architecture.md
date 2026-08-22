@@ -58,10 +58,10 @@ do not overwrite one another.
 Workers write to a temporary file first and then move it to the final `.json`
 path. Before reporting, the parent checks that:
 
-- the number of artifacts matches the number of scheduled objects;
-- every expected object has exactly one artifact;
-- required fields are present and have the right types; and
-- successful counts are non-negative integers.
+- The number of artifacts matches the number of scheduled objects
+- Every expected object has exactly one artifact
+- Required fields are present and have the right types
+- Successful counts are non-negative integers
 
 The workbook is not created when these checks fail, because the worker output is
 incomplete or malformed.
@@ -79,7 +79,7 @@ known unsupported-query cases are not retried.
 
 Reports are written before the final operational-error check, so there is still
 something to inspect when a run fails. Setting
-`FAIL_ON_OPERATIONAL_ERRORS:false` suppresses that final failure; it does not
+`FAIL_ON_OPERATIONAL_ERRORS:false` suppresses that final failure. It does not
 make skipped objects complete or safe to ignore.
 
 ## Authentication and output
