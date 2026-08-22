@@ -44,6 +44,16 @@ def main() -> int:
             )
         )
         return 1
+    if match and match.group(1) == "DeterministicExternalFailure":
+        print(
+            json.dumps(
+                {
+                    "name": "EXTERNAL_OBJECT_EXCEPTION",
+                    "message": "Cannot access: TestFeature in this organization",
+                }
+            )
+        )
+        return 1
     if not match or match.group(1) not in COUNTS:
         print(json.dumps({"name": "INVALID_TYPE", "message": query}))
         return 1

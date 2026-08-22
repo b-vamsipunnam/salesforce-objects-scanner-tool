@@ -243,7 +243,12 @@ Get Record Count Safe
             ${reason}=    Get Skip Reason    ${error_text}    ${object_name}    ${tooling}
             ${details}=    Get Sf Error Details    ${error_text}
             Set To Dictionary    ${details}    attempts=${attempt}
-            ${retry}=    Should Retry Sf Failure    ${reason}    ${attempt}
+            ${retry}=    Should Retry Sf Failure
+            ...    ${reason}
+            ...    ${details}
+            ...    ${object_name}
+            ...    ${tooling}
+            ...    ${attempt}
             IF    ${retry}
                 ${delay}=    Evaluate    float($SF_RETRY_BACKOFF_SECONDS) * (2 ** ($attempt - 1))
                 Log To Console
@@ -295,15 +300,20 @@ Get Record Count Safe
     Fail    Query retry loop ended unexpectedly for ${object_name}.
 
 Should Retry Sf Failure
-    [Documentation]    Retry only configured transient Salesforce failures within the retry limit.
-    [Arguments]    ${reason}    ${attempt}
+    [Documentation]    Retry configured failures only when their sanitized evidence is transient.
+    [Arguments]    ${reason}    ${details}    ${object_name}    ${tooling}    ${attempt}
     ${is_transient}=    Run Keyword And Return Status
     ...    List Should Contain Value
     ...    ${TRANSIENT_FAILURE_REASONS}
     ...    ${reason}
     ${retry_limit}=    Convert To Integer    ${SF_TRANSIENT_RETRIES}
     ${within_limit}=    Evaluate    int($attempt) <= $retry_limit
-    ${should_retry}=    Evaluate    $is_transient and $within_limit
+    ${has_transient_evidence}=    Is Sf Failure Retryable
+    ...    ${reason}
+    ...    ${details}
+    ...    ${object_name}
+    ...    ${tooling}
+    ${should_retry}=    Evaluate    $is_transient and $within_limit and $has_transient_evidence
     RETURN    ${should_retry}
 
 Get Tooling Object Names

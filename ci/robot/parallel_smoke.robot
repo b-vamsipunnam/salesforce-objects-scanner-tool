@@ -129,6 +129,18 @@ Smoke - Transient Salesforce Failure Is Retried And Preserved
     Dictionary Should Contain Item    ${details}    attempts    ${2}
     Should Contain    ${details}[message]    temporarily unavailable
 
+Smoke - Deterministic External Failure Is Not Retried
+    ${fake_sf}=    Create Fake Sf Launcher    ${PARALLEL_SMOKE_DIR}${/}deterministic-cli
+    VAR    ${SF_CLI}    ${fake_sf}    scope=TEST
+    VAR    ${SF_TRANSIENT_RETRIES}    ${2}    scope=TEST
+    VAR    ${SF_RETRY_BACKOFF_SECONDS}    ${0.1}    scope=TEST
+    ${count}    ${reason}    ${duration}    ${details}=
+    ...    Get Record Count Safe    DeterministicExternalFailure
+    Should Be Equal    ${count}    ${None}
+    Should Be Equal    ${reason}    EXTERNAL_OBJECT_EXCEPTION
+    Dictionary Should Contain Item    ${details}    attempts    ${1}
+    Should Contain    ${details}[message]    Cannot access
+
 
 *** Keywords ***
 Create Fake Sf Launcher

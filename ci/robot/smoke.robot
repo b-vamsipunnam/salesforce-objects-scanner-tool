@@ -136,6 +136,9 @@ Smoke - Verbosity Command Line Values Are Normalized
     Normalize Scanner Configuration    verbose_value=TRUE
     Should Be Equal    ${VERBOSE_OBJECT_RESULTS}    ${TRUE}
 
+Smoke - Worker Configuration Round Trip Preserves Types And Text
+    Verify Worker Configuration Round Trip
+
 Smoke - Invalid Successful Artifact Is Rejected
     ${artifact_directory}=    Set Variable    ${OUTPUT DIR}${/}schema-artifacts
     Create Directory    ${artifact_directory}
@@ -166,6 +169,53 @@ Smoke - Missing Artifact Is Rejected
 
 
 *** Keywords ***
+Verify Worker Configuration Round Trip
+    [Documentation]    Exercise scalar, list, path, and Unicode values through the worker payload.
+    ${sf_cli}=    Set Variable    C:${/}Program Files${/}Salesforce CLI${/}sf.cmd
+    ${artifact_directory}=    Set Variable    C:${/}Run Space${/}artifacts-東京
+    @{empty_list}=    Create List
+    @{tooling_limitations}=    Create List    FirstToolingObject    SecondToolingObject
+    VAR    ${ORG_ALIAS}    DévHub-東京    scope=TEST
+    VAR    ${SF_CLI}    ${sf_cli}    scope=TEST
+    VAR    ${VERBOSE_OBJECT_RESULTS}    ${TRUE}    scope=TEST
+    VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${321}    scope=TEST
+    VAR    ${CONNECTEDAPP_TIMEOUT}    ${654}    scope=TEST
+    VAR    ${POLL_INTERVAL_SECONDS}    ${0.25}    scope=TEST
+    VAR    ${SF_TRANSIENT_RETRIES}    ${4}    scope=TEST
+    VAR    ${SF_RETRY_BACKOFF_SECONDS}    ${1.5}    scope=TEST
+    VAR    ${ALLOW_DISABLED_DATACLOUD}    ${TRUE}    scope=TEST
+    VAR    ${SLOW_OBJECTS}    FirstObject, SecondObject    scope=TEST
+    VAR    ${TRANSIENT_FAILURE_REASONS}    REQUEST_LIMIT_EXCEEDED, UNKNOWN_EXCEPTION    scope=TEST
+    VAR    ${KNOWN_UNKNOWN_DATA_OBJECTS}    ${empty_list}    scope=TEST
+    VAR    ${KNOWN_UNKNOWN_TOOLING_OBJECTS}    ${tooling_limitations}    scope=TEST
+    ${payload}=    Build Pabot Worker Configuration    ${artifact_directory}
+    VAR    ${ORG_ALIAS}    reset    scope=TEST
+    VAR    ${SF_CLI}    reset    scope=TEST
+    VAR    ${VERBOSE_OBJECT_RESULTS}    ${FALSE}    scope=TEST
+    VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${1}    scope=TEST
+    VAR    ${CONNECTEDAPP_TIMEOUT}    ${1}    scope=TEST
+    VAR    ${POLL_INTERVAL_SECONDS}    ${1}    scope=TEST
+    VAR    ${SF_TRANSIENT_RETRIES}    ${0}    scope=TEST
+    VAR    ${SF_RETRY_BACKOFF_SECONDS}    ${0}    scope=TEST
+    VAR    ${ALLOW_DISABLED_DATACLOUD}    ${FALSE}    scope=TEST
+    Apply Pabot Worker Configuration    ${payload}
+    Should Be Equal    ${ORG_ALIAS}    DévHub-東京
+    Should Be Equal    ${SF_CLI}    ${sf_cli}
+    Should Be Equal    ${ARTIFACT_DIR}    ${artifact_directory}
+    Should Be Equal    ${VERBOSE_OBJECT_RESULTS}    ${TRUE}
+    Should Be Equal As Integers    ${MAX_QUERY_TIMEOUT_SECONDS}    321
+    Should Be Equal As Integers    ${CONNECTEDAPP_TIMEOUT}    654
+    Should Be Equal As Numbers    ${POLL_INTERVAL_SECONDS}    0.25
+    Should Be Equal As Integers    ${SF_TRANSIENT_RETRIES}    4
+    Should Be Equal As Numbers    ${SF_RETRY_BACKOFF_SECONDS}    1.5
+    Should Be Equal    ${ALLOW_DISABLED_DATACLOUD}    ${TRUE}
+    Lists Should Be Equal    ${SLOW_OBJECTS}    ${{['FirstObject', 'SecondObject']}}
+    Lists Should Be Equal
+    ...    ${TRANSIENT_FAILURE_REASONS}
+    ...    ${{['REQUEST_LIMIT_EXCEEDED', 'UNKNOWN_EXCEPTION']}}
+    Should Be Empty    ${KNOWN_UNKNOWN_DATA_OBJECTS}
+    Lists Should Be Equal    ${KNOWN_UNKNOWN_TOOLING_OBJECTS}    ${tooling_limitations}
+
 Cleanup Smoke Artifacts
     [Documentation]    Remove only schema-test artifacts inside this Robot output directory.
     Run Keyword And Ignore Error    Remove Directory    ${OUTPUT DIR}${/}schema-artifacts    recursive=${TRUE}
