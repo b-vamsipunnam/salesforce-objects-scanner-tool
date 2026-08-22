@@ -20,6 +20,11 @@ Pass settings with Robot Framework's `--variable NAME:value` option. Only
 | `SCAN_OUTPUT_ROOT`           | `<repository>/output` | Root for isolated scan directories                          |
 | `FAIL_ON_OPERATIONAL_ERRORS` |                `true` | Fail after reports are saved when operational errors remain |
 
+`SF_TRANSIENT_RETRIES` sets the maximum number of retries. External and unknown
+exceptions are retried only when the sanitized Salesforce message contains
+evidence of a temporary failure. Deterministic feature-access, schema, and
+method failures stop after the first attempt and remain operational failures.
+
 Example:
 
 ```bash

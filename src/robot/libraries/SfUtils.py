@@ -316,6 +316,27 @@ def is_sf_failure_retryable(
         return True
     if reason not in {"EXTERNAL_OBJECT_EXCEPTION", "UNKNOWN_EXCEPTION"}:
         return True
+    if is_verified_deterministic_sf_failure(
+        reason,
+        details,
+        object_name,
+        tooling,
+    ):
+        return False
+    return TRANSIENT_ERROR_MESSAGE_PATTERN.search(message) is not None
+
+
+def is_verified_deterministic_sf_failure(
+    reason: str,
+    details: dict[str, Any],
+    object_name: str = "",
+    tooling: bool = False,
+) -> bool:
+    """Match only verified deterministic external-failure evidence."""
+    reason = str(reason)
+    message = str(details.get("message", ""))
+    if reason != "EXTERNAL_OBJECT_EXCEPTION":
+        return False
     if _matches_verified_rule(
         object_name,
         tooling,
@@ -323,10 +344,11 @@ def is_sf_failure_retryable(
         message,
         VERIFIED_NON_RETRYABLE_EXTERNAL_RULES,
     ):
-        return False
-    if any(re.search(pattern, message) for pattern in DETERMINISTIC_EXTERNAL_MESSAGE_PATTERNS):
-        return False
-    return TRANSIENT_ERROR_MESSAGE_PATTERN.search(message) is not None
+        return True
+    return any(
+        re.search(pattern, message)
+        for pattern in DETERMINISTIC_EXTERNAL_MESSAGE_PATTERNS
+    )
 
 
 def _to_bool(value: Any) -> bool:

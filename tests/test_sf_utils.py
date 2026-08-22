@@ -6,6 +6,7 @@ from src.robot.libraries.SfUtils import (
     classify_sf_error,
     get_sf_error_details,
     is_sf_failure_retryable,
+    is_verified_deterministic_sf_failure,
     parse_sf_json,
     resolve_executable,
     sanitize_sf_text,
@@ -240,6 +241,72 @@ class SfUtilsTests(unittest.TestCase):
             is_sf_failure_retryable(
                 "UNKNOWN_EXCEPTION",
                 {"message": "Deterministic provider validation failure"},
+            )
+        )
+
+    def test_user_app_menu_item_schema_rule_requires_exact_context(self):
+        details = {
+            "message": (
+                'The "Id" field is of type number, but the value from the '
+                'external system is "12/17/25 12:00 AM".'
+            )
+        }
+        self.assertTrue(
+            is_verified_deterministic_sf_failure(
+                "EXTERNAL_OBJECT_EXCEPTION",
+                details,
+                "UserAppMenuItem",
+                False,
+            )
+        )
+        self.assertFalse(
+            is_verified_deterministic_sf_failure(
+                "EXTERNAL_OBJECT_EXCEPTION",
+                details,
+                "DifferentObject",
+                False,
+            )
+        )
+        self.assertFalse(
+            is_verified_deterministic_sf_failure(
+                "EXTERNAL_OBJECT_EXCEPTION",
+                details,
+                "UserAppMenuItem",
+                True,
+            )
+        )
+
+    def test_deterministic_retry_rules_reject_similar_messages(self):
+        exact = {"message": "Unable to invoke method: getField"}
+        similar_method = {"message": "Unable to invoke methods: getField"}
+        similar_schema = {
+            "message": (
+                'The "Id" field is of numeric type, but the value from the '
+                'external system is "12/17/25 12:00 AM".'
+            )
+        }
+        self.assertTrue(
+            is_verified_deterministic_sf_failure(
+                "EXTERNAL_OBJECT_EXCEPTION",
+                exact,
+                "KnowledgeWorkOrderField",
+                True,
+            )
+        )
+        self.assertFalse(
+            is_verified_deterministic_sf_failure(
+                "EXTERNAL_OBJECT_EXCEPTION",
+                similar_method,
+                "KnowledgeWorkOrderField",
+                True,
+            )
+        )
+        self.assertFalse(
+            is_verified_deterministic_sf_failure(
+                "EXTERNAL_OBJECT_EXCEPTION",
+                similar_schema,
+                "UserAppMenuItem",
+                False,
             )
         )
 
