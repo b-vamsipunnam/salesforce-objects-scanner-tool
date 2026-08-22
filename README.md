@@ -16,12 +16,12 @@ there is no object list to maintain by hand.
 
 ## What the scan includes
 
-- standard and custom objects returned by Salesforce CLI;
-- queryable Tooling API objects, unless Tooling discovery is disabled;
-- a separate timeout for each object;
-- retries for a small set of transient Salesforce errors;
-- the Salesforce reason for any object that could not be counted; and
-- an isolated output directory for each run.
+- Standard and custom objects returned by Salesforce CLI
+- Queryable Tooling API objects, unless Tooling discovery is disabled
+- A separate timeout for each object
+- Retries for a small set of transient Salesforce errors
+- The Salesforce reason for any object that could not be counted
+- An isolated output directory for each run
 
 Errors are redacted before they are written to disk, but scan output may still
 contain sensitive org information. Store and share it accordingly.
@@ -57,9 +57,9 @@ Robot Framework writes its log and report to `results/` when the quick-start
 command is used.
 
 Always open the workbook and check every row in `Skipped Objects`. A passing
-Robot run means there were no unexpected operational errors; it does not mean
-that Salesforce allowed every discovered object to be counted. A missing count
-must not be treated as zero.
+Robot run means there were no unexpected operational errors. It does not mean
+that Salesforce allowed every discovered object to be counted. Do not treat a
+missing count as zero.
 
 ## Documentation
 

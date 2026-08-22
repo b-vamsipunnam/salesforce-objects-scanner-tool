@@ -4,8 +4,8 @@ Small, focused changes are easiest to review. If you are planning a new feature
 or a change to report behavior, open an issue first so the approach can be
 discussed before you spend time implementing it.
 
-Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security problems belong
-in a private report; see [SECURITY.md](SECURITY.md).
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security problems
+privately as described in [SECURITY.md](SECURITY.md).
 
 ## Local setup
 
@@ -16,8 +16,8 @@ python -m venv venv
 python -m pip install -r requirements-dev.txt
 ```
 
-Python 3.10 or later is required. Salesforce CLI is only needed for a live scan;
-the regular test suite uses a fake CLI.
+Python 3.10 or later is required. Salesforce CLI is only needed for a live scan.
+The regular test suite uses a fake CLI.
 
 ## Checks to run
 
@@ -86,6 +86,6 @@ auth URL in a workflow input, repository file, log, issue, or pull request.
 ## Reporting a bug
 
 Search the open issues first. If the problem is new, include the Python,
-Salesforce CLI, and operating-system versions; the command you ran; the expected
-behavior; and sanitized Robot output. A small reproducible case is more useful
+Salesforce CLI, and operating-system versions, the command you ran, the expected
+behavior, and sanitized Robot output. A small reproducible case is more useful
 than a full production log.

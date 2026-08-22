@@ -33,8 +33,8 @@ org.
 ## Expired or invalid sessions
 
 If `sf org display --target-org MyOrg` fails, authenticate again before running
-the scanner. The scanner checks the alias at startup; it does not manage the CLI
-session for you.
+the scanner. The scanner checks the alias at startup, but it does not manage the
+CLI session for you.
 
 ---
 
