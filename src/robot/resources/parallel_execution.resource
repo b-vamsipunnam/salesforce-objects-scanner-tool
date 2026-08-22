@@ -103,20 +103,20 @@ Apply Pabot Worker Configuration
     ${config}=    Evaluate
     ...    json.loads(base64.urlsafe_b64decode($config_base64).decode('utf-8'))
     ...    modules=json,base64
-    VAR    ${ORG_ALIAS}    ${config}[org_alias]    scope=SUITE
-    VAR    ${SF_CLI}    ${config}[sf_cli]    scope=SUITE
-    VAR    ${ARTIFACT_DIR}    ${config}[artifact_dir]    scope=SUITE
-    VAR    ${VERBOSE_OBJECT_RESULTS}    ${config}[verbose_object_results]    scope=SUITE
-    VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${config}[max_query_timeout_seconds]    scope=SUITE
-    VAR    ${CONNECTEDAPP_TIMEOUT}    ${config}[connectedapp_timeout]    scope=SUITE
-    VAR    ${POLL_INTERVAL_SECONDS}    ${config}[poll_interval_seconds]    scope=SUITE
-    VAR    ${SF_TRANSIENT_RETRIES}    ${config}[sf_transient_retries]    scope=SUITE
-    VAR    ${SF_RETRY_BACKOFF_SECONDS}    ${config}[sf_retry_backoff_seconds]    scope=SUITE
-    VAR    ${ALLOW_DISABLED_DATACLOUD}    ${config}[allow_disabled_datacloud]    scope=SUITE
-    VAR    ${SLOW_OBJECTS}    ${config}[slow_objects]    scope=SUITE
-    VAR    ${TRANSIENT_FAILURE_REASONS}    ${config}[transient_failure_reasons]    scope=SUITE
-    VAR    ${KNOWN_UNKNOWN_DATA_OBJECTS}    ${config}[known_unknown_data_objects]    scope=SUITE
-    VAR    ${KNOWN_UNKNOWN_TOOLING_OBJECTS}    ${config}[known_unknown_tooling_objects]    scope=SUITE
+    VAR    ${ORG_ALIAS}    ${config}[org_alias]    scope=TEST
+    VAR    ${SF_CLI}    ${config}[sf_cli]    scope=TEST
+    VAR    ${ARTIFACT_DIR}    ${config}[artifact_dir]    scope=TEST
+    VAR    ${VERBOSE_OBJECT_RESULTS}    ${config}[verbose_object_results]    scope=TEST
+    VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${config}[max_query_timeout_seconds]    scope=TEST
+    VAR    ${CONNECTEDAPP_TIMEOUT}    ${config}[connectedapp_timeout]    scope=TEST
+    VAR    ${POLL_INTERVAL_SECONDS}    ${config}[poll_interval_seconds]    scope=TEST
+    VAR    ${SF_TRANSIENT_RETRIES}    ${config}[sf_transient_retries]    scope=TEST
+    VAR    ${SF_RETRY_BACKOFF_SECONDS}    ${config}[sf_retry_backoff_seconds]    scope=TEST
+    VAR    ${ALLOW_DISABLED_DATACLOUD}    ${config}[allow_disabled_datacloud]    scope=TEST
+    VAR    ${SLOW_OBJECTS}    ${config}[slow_objects]    scope=TEST
+    VAR    ${TRANSIENT_FAILURE_REASONS}    ${config}[transient_failure_reasons]    scope=TEST
+    VAR    ${KNOWN_UNKNOWN_DATA_OBJECTS}    ${config}[known_unknown_data_objects]    scope=TEST
+    VAR    ${KNOWN_UNKNOWN_TOOLING_OBJECTS}    ${config}[known_unknown_tooling_objects]    scope=TEST
 
 Generate Pabot Worker Suites
     [Documentation]    Create balanced Robot suites so Pabot reuses a process for many objects.

@@ -5,6 +5,7 @@ from unittest.mock import patch
 from src.robot.libraries.SfUtils import (
     classify_sf_error,
     get_sf_error_details,
+    is_sf_failure_retryable,
     parse_sf_json,
     resolve_executable,
     sanitize_sf_text,
@@ -193,6 +194,53 @@ class SfUtilsTests(unittest.TestCase):
         self.assertEqual(
             classify_sf_error(raw, "DatacloudCompany", allow_disabled_datacloud=True),
             "DATACLOUD_INTENTIONALLY_DISABLED",
+        )
+
+    def test_retries_only_external_failures_with_transient_evidence(self):
+        transient = {"message": "Provider temporarily unavailable. Try again."}
+        unavailable_feature = {
+            "message": "Cannot access: EinsteinAgentSettings in this organization"
+        }
+        schema_mismatch = {
+            "message": (
+                'The "Id" field is of type number, but the value from the '
+                'external system is "02ufj000008DMJ4AAO".'
+            )
+        }
+        self.assertTrue(
+            is_sf_failure_retryable("EXTERNAL_OBJECT_EXCEPTION", transient)
+        )
+        self.assertFalse(
+            is_sf_failure_retryable(
+                "EXTERNAL_OBJECT_EXCEPTION",
+                unavailable_feature,
+                "EinsteinAgentSettings",
+                True,
+            )
+        )
+        self.assertFalse(
+            is_sf_failure_retryable(
+                "EXTERNAL_OBJECT_EXCEPTION",
+                schema_mismatch,
+                "PlatformEventUsageMetric",
+            )
+        )
+        self.assertTrue(
+            is_sf_failure_retryable("REQUEST_LIMIT_EXCEEDED", {"message": "Limit"})
+        )
+
+    def test_unknown_exception_requires_transient_evidence(self):
+        self.assertTrue(
+            is_sf_failure_retryable(
+                "UNKNOWN_EXCEPTION",
+                {"message": "An unexpected error occurred. ErrorId: 123"},
+            )
+        )
+        self.assertFalse(
+            is_sf_failure_retryable(
+                "UNKNOWN_EXCEPTION",
+                {"message": "Deterministic provider validation failure"},
+            )
         )
 
     def test_sanitizes_structured_and_unstructured_errors(self):

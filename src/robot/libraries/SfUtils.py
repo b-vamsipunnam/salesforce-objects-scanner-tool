@@ -97,6 +97,33 @@ VERIFIED_QUERY_UNSUPPORTED_RULES = (
     ),
 )
 
+VERIFIED_NON_RETRYABLE_EXTERNAL_RULES = (
+    (
+        "PlatformEventUsageMetric",
+        False,
+        "EXTERNAL_OBJECT_EXCEPTION",
+        r'^The "Id" field is of type number, but the value from the external system is ',
+    ),
+    (
+        "UserAppMenuItem",
+        False,
+        "EXTERNAL_OBJECT_EXCEPTION",
+        r'^The "Id" field is of type number, but the value from the external system is ',
+    ),
+)
+
+DETERMINISTIC_EXTERNAL_MESSAGE_PATTERNS = (
+    r"^Cannot access: .+ in this organization$",
+    r"^Unable to invoke method: ",
+)
+
+TRANSIENT_ERROR_MESSAGE_PATTERN = re.compile(
+    r"(?:temporar(?:y|ily)|try again|request limit|rate limit|too many requests|"
+    r"service unavailable|server unavailable|internal server error|connection (?:reset|refused)|"
+    r"socket hang up|econnreset|etimedout|unexpected error occurred)",
+    re.IGNORECASE,
+)
+
 
 def resolve_executable(name: str) -> str:
     """Return the executable path or raise a clear error."""
@@ -272,6 +299,34 @@ def classify_sf_error(
     ):
         return "COUNT_NOT_SUPPORTED"
     return name if name else "OTHER_ERROR"
+
+
+def is_sf_failure_retryable(
+    reason: str,
+    details: dict[str, Any],
+    object_name: str = "",
+    tooling: bool = False,
+) -> bool:
+    """Return whether a configured failure has evidence of being transient."""
+    reason = str(reason)
+    message = str(details.get("message", ""))
+    object_name = str(object_name)
+
+    if reason == "REQUEST_LIMIT_EXCEEDED":
+        return True
+    if reason not in {"EXTERNAL_OBJECT_EXCEPTION", "UNKNOWN_EXCEPTION"}:
+        return True
+    if _matches_verified_rule(
+        object_name,
+        tooling,
+        reason,
+        message,
+        VERIFIED_NON_RETRYABLE_EXTERNAL_RULES,
+    ):
+        return False
+    if any(re.search(pattern, message) for pattern in DETERMINISTIC_EXTERNAL_MESSAGE_PATTERNS):
+        return False
+    return TRANSIENT_ERROR_MESSAGE_PATTERN.search(message) is not None
 
 
 def _to_bool(value: Any) -> bool:

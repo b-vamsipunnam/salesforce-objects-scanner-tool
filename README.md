@@ -10,9 +10,9 @@ Salesforce Objects Scanner builds an inventory of the objects available to a
 Salesforce user and runs `SELECT COUNT()` against them in parallel. It saves the
 counts, query times, and skipped objects to JSON files and an Excel workbook.
 
-The scanner is useful when sizing a migration, reviewing storage, or finding
-large objects before a cleanup. It discovers objects from the org at runtime, so
-there is no object list to maintain by hand.
+The scanner provides an initial object inventory that can support migration
+planning, cleanup analysis, and follow-up storage assessments. It discovers
+objects from the org at runtime, so there is no object list to maintain by hand.
 
 ## What the scan includes
 

@@ -103,7 +103,7 @@ Get All Object Record Counts
         ...    TOOLING::DISCOVERY=${tooling_discovery_reason}
         &{discovery_details}=    Create Dictionary
         ...    name=${tooling_discovery_reason}
-        ...    message=Tooling discovery failed; inspect the Robot log for the command response.
+        ...    message=Tooling discovery failed. Inspect the Robot log for the command response.
         Set To Dictionary    ${skipped_details}    TOOLING::DISCOVERY=${discovery_details}
         Set To Dictionary    ${durations_seconds}    TOOLING::DISCOVERY=${0.0}
     END
