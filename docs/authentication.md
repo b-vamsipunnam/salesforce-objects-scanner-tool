@@ -1,41 +1,62 @@
 # Authentication
 
-The scanner uses a Salesforce CLI org alias. It does not have a separate login
-flow and does not ask for a username, password, or token.
+The scanner uses a login saved by Salesforce CLI. It does not ask for a
+Salesforce username, password, or token, and it does not store those credentials
+in this repository.
 
-## Log in
+## Orgs and aliases
 
-Authenticate interactively and assign an alias:
+A Salesforce org is a Salesforce environment, such as a production org,
+sandbox, or scratch org. An org alias is a short name that Salesforce CLI saves
+on your computer for one authenticated org. The examples use `MyOrg`; you can
+choose another alias.
+
+## Required access
+
+The Salesforce user must have:
+
+- Access to an org edition with Salesforce API access
+- The Salesforce **API Enabled** user permission
+- Visibility and read access for the objects and records that should be counted
+- Access to Tooling API objects if those optional setup and development objects
+  are in scope
+
+There is no single project-specific permission set. Salesforce features,
+licenses, object permissions, and record sharing all affect what one user can
+discover and count. Use an account with enough access for the purpose of the
+scan, but do not grant unrelated permissions merely to remove skipped rows. The
+scanner only sends discovery and read queries; it does not modify Salesforce
+data.
+
+Salesforce documents the
+[API Enabled permission](https://help.salesforce.com/s/articleView?id=platform.admin_userperms.htm&type=5)
+and [editions with API access](https://help.salesforce.com/s/articleView?id=000005140&type=1).
+
+## Log in with Salesforce CLI
+
+Run:
 
 ```bash
 sf org login web --alias MyOrg
 ```
 
-Confirm the alias before starting a scan:
+The command opens Salesforce in your default browser. Complete the sign-in and
+close the browser when Salesforce confirms the login. Salesforce CLI then saves
+the connection under the `MyOrg` alias.
+
+If your org uses a sandbox or custom login URL, follow the Salesforce CLI
+[`org login web` reference](https://developer.salesforce.com/docs/platform/salesforce-cli-reference/guide/cli_reference_org_login_web.html)
+for the appropriate `--instance-url` value.
+
+## Check the alias
 
 ```bash
 sf org display --target-org MyOrg
 ```
 
-Pass the same alias to Robot Framework:
+The command should show the selected org without an authentication error. Its
+output includes sensitive connection information, so do not save or share it.
+Keep using the same alias when you run the scanner.
 
-```bash
-robot -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
-```
-
-## Use the right Salesforce user
-
-The report only covers objects that the authenticated user can discover and
-query. Use the least access needed for the job, but make sure the account can see
-the objects that matter to the review. Test code changes against a non-production
-org.
-
-## Expired or invalid sessions
-
-If `sf org display --target-org MyOrg` fails, authenticate again before running
-the scanner. The scanner checks the alias at startup, but it does not manage the
-CLI session for you.
-
----
-
-[Back to README](../README.md) | [Installation](installation.md) | [Configuration](configuration.md)
+Next: [run a scan](usage.md). If the alias is rejected later, see
+[Troubleshooting](troubleshooting.md#the-org-alias-is-rejected).

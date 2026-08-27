@@ -1,48 +1,31 @@
 # Usage
 
-Finish the [installation](installation.md) and sign in with Salesforce CLI as
-described in [authentication](authentication.md). Run the scanner from the
-repository root:
+Complete [Installation](installation.md) and [Authentication](authentication.md)
+first. Keep the virtual environment active and run commands from the repository
+root.
+
+## Run the default scan
 
 ```bash
 robot -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
 ```
 
-`MyOrg` must be an alias that works with `sf org display --target-org MyOrg`.
+Replace `MyOrg` with your authenticated Salesforce CLI alias. The default scan
+includes Salesforce data objects and queryable Tooling API objects. The
+Tooling API exposes setup and development information rather than ordinary
+business records.
 
-## Choosing what to scan
+At the start, the console confirms the CLI path, org alias, output workbook path,
+and discovery totals. Pabot then runs object batches in parallel. Detailed
+worker messages are written to `pabot/pabot-console.log` inside the current run.
+The console prints successful and skipped totals when the batches finish.
 
-By default, the scanner includes data objects and queryable Tooling API objects.
-For a data-only scan, turn Tooling off:
+To exclude Tooling objects, change worker counts, enable verbose results, or
+adjust a timeout, use the examples in [Configuration](configuration.md).
 
-```bash
-robot -d results --variable ORG_ALIAS:MyOrg --variable INCLUDE_TOOLING:false src/robot/orchestrator/scan.robot
-```
+## Find the output
 
-Successful counts are not printed one by one unless verbose output is enabled:
-
-```bash
-robot -d results --variable ORG_ALIAS:MyOrg --variable VERBOSE_OBJECT_RESULTS:true src/robot/orchestrator/scan.robot
-```
-
-Other settings, including worker count and timeouts, are listed in
-[Configuration](configuration.md).
-
-## Watching a run
-
-The console shows discovery totals, retries, skipped objects, and the final
-summary. A completed object also leaves an artifact in the current run:
-
-```text
-output/Run_<date-time>_<id>/pabot/artifacts/
-```
-
-The number of artifacts is a quick indication of progress. Do not move, edit, or
-delete the run directory until Robot finishes.
-
-## Output files
-
-The output for one run looks like this:
+Each scan creates a new directory. The full layout is:
 
 ```text
 output/Run_<date-time>_<id>/
@@ -60,24 +43,39 @@ output/Run_<date-time>_<id>/
 `-- SF_Objects_<date-time>.xlsx
 ```
 
-The Excel workbook has four sheets:
+A completed object creates a JSON file under `pabot/artifacts/`, so the number of
+files there gives a rough view of progress. Do not move, edit, or delete a run
+directory while the scan is active.
 
-- `Data Objects` contains successful data-object counts.
-- `Tooling Objects` contains successful Tooling API counts.
-- `Skipped Objects` lists objects that could not be counted, along with the
-  classified reason and sanitized Salesforce details.
-- `Durations (Seconds)` shows how long each object query took.
+The `-d results` option sends Robot Framework's `log.html`, `report.html`, and
+`output.xml` files to `results/`. These files describe the Robot run; the scanner
+results remain under `output/`.
 
-The JSON files contain the same information for scripts or later comparison.
-Robot's `log.html` and `report.html` are written to the directory passed with
-`-d`, which is `results/` in the examples above.
+## Read the workbook
+
+The Excel output workbook has four sheets:
+
+| Sheet                 | Contents |
+|-----------------------|----------|
+| `Data Objects`        | Successful counts for standard and custom Salesforce objects |
+| `Tooling Objects`     | Successful counts for Tooling API objects |
+| `Skipped Objects`     | Objects without a count, a classified reason, and sanitized Salesforce details |
+| `Durations (Seconds)` | Recorded query time for each object |
+
+The final files under `json/` separate the same successful counts, skipped
+reasons, skipped details, and durations for use by scripts.
 
 ## Review the skipped objects
 
-Check every row in `Skipped Objects`, even when Robot reports a passing run.
-Some Salesforce objects do not support `COUNT()` or require a filter. Those
-known cases are allowed to pass. Authentication, permissions, API limits,
-timeouts, and unrecognized errors still need attention.
+A skipped object is one that was discovered but did not produce a successful
+count. Check every row in `Skipped Objects`, even when Robot Framework reports a
+passing run.
+
+Known Salesforce restrictions, such as an object that does not support
+`COUNT()` or requires a filter, are expected skips. Authentication failures,
+permission problems, API limits, timeouts, and unknown errors are operational
+problems. With the default settings, the scanner saves reports before failing
+its final quality check for operational problems.
 
 For each skipped row:
 
@@ -87,21 +85,15 @@ For each skipped row:
    again when needed.
 4. Keep the reviewed workbook with the matching Robot log.
 
-Do not report a skipped object as having zero records.
+Do not report a skipped object as having zero records. A successful Robot
+Framework run does not mean every discovered object was countable.
 
-## Adjusting parallelism
+## Protect the output
 
-The default is four Pabot processes. Increase `PABOT_PROCESSES` in small steps
-and compare runs against the same org. More workers can make a scan slower or
-produce more `REQUEST_LIMIT_EXCEEDED` errors when API capacity is tight.
-
-`PABOT_SHARDS_PER_PROCESS` controls how many batches are queued per process. The
-default of four is usually a reasonable starting point when object query times
-vary widely.
+Captured errors are sanitized for common credential patterns, but the workbook,
+JSON files, and Robot logs can still contain object names, counts, org URLs, and
+Salesforce error details. Treat the entire run as sensitive org information.
 
 See [Troubleshooting](troubleshooting.md) if a scan stops before creating the
-workbook.
-
----
-
-[Back to README](../README.md) | [Architecture](architecture.md)
+workbook. Read [Limitations](limitations.md) before using the counts for cleanup,
+migration, or storage decisions.

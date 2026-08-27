@@ -1,23 +1,25 @@
 # Contributing
 
-Small, focused changes are easiest to review. If you are planning a new feature
-or a change to report behavior, open an issue first so the approach can be
-discussed before you spend time implementing it.
+Keep changes focused. Open an issue before starting a new feature or changing
+report behavior so maintainers can agree on the approach.
 
 Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security problems
 privately as described in [SECURITY.md](SECURITY.md).
 
-## Local setup
+## Set up a development environment
+
+Python 3.10 or later is required. Follow the
+[download](docs/installation.md#2-download-the-project) and
+[virtual-environment](docs/installation.md#3-create-a-virtual-environment)
+steps in the installation guide. Then install the development requirements from
+the repository root:
 
 ```bash
-git clone https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool.git
-cd salesforce-objects-scanner-tool
-python -m venv venv
 python -m pip install -r requirements-dev.txt
 ```
 
-Python 3.10 or later is required. Salesforce CLI is only needed for a live scan.
-The regular test suite uses a fake CLI.
+This file includes the runtime packages, Ruff, and Robocop. Salesforce CLI is
+needed only for a live-org check; the automated smoke tests use a fake CLI.
 
 ## Checks to run
 
@@ -32,15 +34,11 @@ ruff check src tests ci/fakes
 robocop check src/robot ci/robot
 ```
 
-Use a non-production org for changes that need a real Salesforce check:
-
-```bash
-robot -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
-```
-
-Review `Skipped Objects` before describing a live scan as successful. Remove org
-names, URLs, tokens, and customer data from anything attached to an issue or pull
-request.
+These checks do not require a Salesforce login. If a change needs a manual live
+check, follow [Authentication](docs/authentication.md) and
+[Usage](docs/usage.md) with an approved non-production org. Review the
+`Skipped Objects` sheet and remove org names, URLs, tokens, counts, and customer
+data from anything attached to an issue or pull request.
 
 ## Project conventions
 
@@ -68,7 +66,7 @@ Fix transient query classification
 Document Tooling discovery failures
 ```
 
-## Live validation in GitHub Actions
+## Maintainer live validation
 
 Maintainers can run the `Live Salesforce Validation` workflow against an
 approved non-production org.
@@ -85,7 +83,6 @@ auth URL in a workflow input, repository file, log, issue, or pull request.
 
 ## Reporting a bug
 
-Search the open issues first. If the problem is new, include the Python,
-Salesforce CLI, and operating-system versions, the command you ran, the expected
-behavior, and sanitized Robot output. A small reproducible case is more useful
-than a full production log.
+Search open issues first. For a new problem, include the Python, Salesforce CLI,
+and operating-system versions, the command you ran, the expected result, and
+sanitized Robot output. Prefer a small reproducible example to a production log.

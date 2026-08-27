@@ -1,46 +1,100 @@
 # Salesforce Objects Scanner
 
-[![Robot Framework](https://img.shields.io/badge/Robot%20Framework-7.4.2-orange?style=flat&logo=robotframework&logoColor=white)](https://robotframework.org/)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat&logo=python&logoColor=white)](https://www.python.org/)
-[![Salesforce CLI](https://img.shields.io/badge/Salesforce-CLI-00A1E0?style=flat&logo=salesforce&logoColor=white)](https://developer.salesforce.com/tools/salesforcecli)
-[![CI](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/actions/workflows/robot-ci.yml/badge.svg)](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/actions)
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
+Salesforce Objects Scanner finds the Salesforce objects available to a user,
+counts their records where Salesforce allows it, and saves the results as an
+Excel workbook and JSON files.
 
-Salesforce Objects Scanner builds an inventory of the objects available to a
-Salesforce user and runs `SELECT COUNT()` against them in parallel. It saves the
-counts, query times, and skipped objects to JSON files and an Excel workbook.
+It is intended for Salesforce administrators, developers, and migration teams
+who need a starting inventory for cleanup or migration planning. A Salesforce
+object is similar to a database table: it stores records such as accounts,
+contacts, or custom business data. The scanner reads from Salesforce but does
+not change org data.
 
-The scanner provides an initial object inventory that can support migration
-planning, cleanup analysis, and follow-up storage assessments. It discovers
-objects from the org at runtime, so there is no object list to maintain by hand.
+## Before you start
 
-## What the scan includes
+You need:
 
-- Standard and custom objects returned by Salesforce CLI
-- Queryable Tooling API objects, unless Tooling discovery is disabled
-- A separate timeout for each object
-- Retries for a small set of transient Salesforce errors
-- The Salesforce reason for any object that could not be counted
-- An isolated output directory for each run
+- [Git](https://git-scm.com/downloads), unless you download the repository as a
+  ZIP file
+- [Python](https://www.python.org/downloads/) 3.10 or later
+- [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli),
+  the `sf` command-line program used to sign in and send requests to Salesforce
+- Access to a Salesforce org through a user who can use the API and read the
+  objects you want to count
 
-Errors are redacted before they are written to disk, but scan output may still
-contain sensitive org information. Store and share it accordingly.
+See [Installation](docs/installation.md) if any of these tools are not ready.
 
 ## Quick start
 
-You need Python 3.10 or later, Salesforce CLI, and access to a Salesforce org.
+Run these commands in a terminal.
+
+### 1. Download the project and create a virtual environment
 
 ```bash
 git clone https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool.git
 cd salesforce-objects-scanner-tool
 python -m venv venv
+```
+
+A virtual environment keeps this project's Python packages separate from other
+projects. Activate it before installing anything.
+
+On Windows PowerShell:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+On Windows Command Prompt:
+
+```bat
+venv\Scripts\activate.bat
+```
+
+On macOS or Linux:
+
+```bash
+source venv/bin/activate
+```
+
+### 2. Install the scanner
+
+```bash
 python -m pip install -r requirements.txt
+```
+
+The command installs Robot Framework, Pabot, and the Excel-writing library in
+the virtual environment.
+
+### 3. Sign in to Salesforce
+
+```bash
 sf org login web --alias MyOrg
+```
+
+A Salesforce org is a Salesforce environment, such as a production org or
+sandbox. The command opens a browser for sign-in. `MyOrg` is an org alias: a
+short local name for that saved login. You can choose another name, but use the
+same name in the remaining commands.
+
+Confirm that the alias works:
+
+```bash
+sf org display --target-org MyOrg
+```
+
+The command should show the selected org without an authentication error. Its
+output contains sensitive connection information, so do not share it.
+
+### 4. Run the scan
+
+```bash
 robot -d results --variable ORG_ALIAS:MyOrg src/robot/orchestrator/scan.robot
 ```
 
-See [Installation](docs/installation.md) for virtual-environment activation and
-[Authentication](docs/authentication.md) for Salesforce CLI login details.
+An object scan asks Salesforce for object names and then runs
+`SELECT COUNT()` for each name. The console shows the output workbook path before
+the count work begins and prints a summary when the run ends.
 
 ## Results
 
@@ -53,13 +107,36 @@ output/Run_<date-time>_<id>/
 `-- SF_Objects_<date-time>.xlsx
 ```
 
-Robot Framework writes its log and report to `results/` when the quick-start
-command is used.
+The `.xlsx` file is the output workbook. `Data Objects` contains successful
+counts for standard and custom Salesforce objects. `Tooling Objects` contains
+successful counts for development and setup metadata exposed by Salesforce's
+Tooling API; these objects are included by default. The workbook also contains
+skipped objects and query durations. The `json/` directory holds the same report
+data for scripts. Robot Framework writes its technical log and report to
+`results/`.
 
-Always open the workbook and check every row in `Skipped Objects`. A passing
-Robot run means there were no unexpected operational errors. It does not mean
-that Salesforce allowed every discovered object to be counted. Do not treat a
-missing count as zero.
+A skipped object is an object that Salesforce discovered but the scanner could
+not count. Always review every row in the workbook's `Skipped Objects` sheet.
+A successful Robot Framework run does not mean every discovered object was
+countable. A missing count is not zero.
+
+Common credential patterns are redacted from captured errors, but the output can
+still contain sensitive information about your Salesforce org. Store and share
+the run directory accordingly. See [Usage](docs/usage.md) for every output file
+and [Limitations](docs/limitations.md) before using the counts in an assessment.
+
+## How it works
+
+<p align="center">
+  <a href="docs/architecture.md">
+    <img src="docs/architecture.svg" width="900" alt="Salesforce Objects Scanner execution flow">
+  </a>
+</p>
+
+Salesforce CLI discovers objects and runs the `SELECT COUNT()` queries. Robot
+Framework controls the workflow and reporting, while Pabot, its parallel runner,
+runs isolated object batches. See [Architecture](docs/architecture.md) for
+details.
 
 ## Documentation
 
@@ -73,22 +150,5 @@ missing count as zero.
 | [Troubleshooting](docs/troubleshooting.md) | Common failures and practical fixes           |
 | [Limitations](docs/limitations.md)         | What the counts do and do not represent       |
 
-Contributor setup and project checks are in [CONTRIBUTING.md](CONTRIBUTING.md).
-Please also read the [Code of Conduct](CODE_OF_CONDUCT.md) and
-[Security Policy](SECURITY.md) before contributing.
-
-## Repository layout
-
-```text
-ci/                      CI-safe Robot suites and fake Salesforce CLI
-docs/                    User and architecture guides
-src/robot/libraries/     Python helpers and Excel output
-src/robot/orchestrator/  Scanner entry point
-src/robot/resources/     Robot Framework resources
-tests/                   Python unit tests
-output/                  Generated scan output
-```
-
-## License
-
-Licensed under the [MIT License](LICENSE).
+See [CONTRIBUTING.md](CONTRIBUTING.md) to work on the project. This project uses
+the [MIT License](LICENSE).
