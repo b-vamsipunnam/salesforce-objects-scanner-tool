@@ -1,100 +1,89 @@
 # Architecture
 
-The scanner is a Robot Framework suite that uses Salesforce CLI for discovery
-and SOQL queries. Pabot supplies the worker processes. Two small Python libraries
-handle CLI output that is awkward to parse in Robot and create the Excel file.
-
-## Scan flow
+This is the technical overview of the scanner. See [Usage](usage.md) for the
+user workflow and output format.
 
 <p align="center">
   <img src="architecture.svg" width="900" alt="Salesforce Objects Scanner execution flow">
 </p>
 
-1. `scan.robot` checks the org alias and Salesforce CLI session.
-2. Salesforce CLI returns the data-object list. If Tooling is enabled, the
-   scanner also reads the Tooling API's queryable object list.
-3. The object names are deduplicated and spread across generated Robot suites.
-4. Pabot runs those suites with the configured number of processes. Each object
-   gets its own `SELECT COUNT()` query and timeout.
-5. A worker writes one JSON artifact for each object it finishes.
-6. The parent suite checks the artifacts, builds the final JSON files and Excel
-   workbook, and then decides whether the run should pass or fail.
+## Components
 
-Tooling discovery has no built-in fallback list. If it fails, data-object work
-continues, `TOOLING::DISCOVERY` is added to the skipped results, and the run fails
-after the reports are written. Set `INCLUDE_TOOLING:false` when Tooling objects
-are not part of the scan.
+- Robot Framework controls configuration, discovery, batching, validation, and
+  reporting.
+- Salesforce CLI (`sf`) supplies the authenticated connection, lists regular
+  data objects, calls the Tooling REST endpoint, and runs SOQL count queries.
+- Pabot runs generated Robot suites in separate worker processes.
+- `SfUtils.py` parses CLI JSON, classifies errors, and redacts common credential
+  patterns.
+- `ExcelWriter.py` creates the final workbook from consolidated JSON data.
 
-## Parallel work
+## Execution flow
 
-`PABOT_PROCESSES` sets the number of processes. The scanner creates up to
-`PABOT_PROCESSES * PABOT_SHARDS_PER_PROCESS` suites and assigns objects to them
-round-robin. Splitting the work into more suites than processes helps when a few
-objects take much longer than the rest.
+1. `scan.robot` normalizes settings, checks `ORG_ALIAS`, resolves the `sf`
+   executable, and verifies the saved CLI session.
+2. The parent suite creates a unique run directory.
+3. `sf sobject list` returns data object names. If Tooling is enabled, the
+   scanner calls `/services/data/v<version>/tooling/sobjects/` and keeps entries
+   marked as queryable.
+4. Object names are deduplicated and assigned round-robin to generated Robot
+   suites.
+5. Pabot starts the suites. Each worker runs `SELECT COUNT() FROM <object>` with
+   `sf data query` and applies the per-object timeout and retry rules.
+6. Each completed query writes one JSON artifact. Data and Tooling identities
+   are kept separate when their object names match.
+7. The parent validates all expected artifacts, writes the five final JSON files
+   and Excel workbook, and then applies the scan-quality check.
 
-A Pabot process handles a batch of objects rather than starting a new Robot
-process for every query. This keeps process startup under control while still
-allowing work to be shared between workers.
+Tooling discovery has no fallback object list. If discovery fails, data object
+work continues and `TOOLING::DISCOVERY` is added to skipped results.
+
+## Parallel model
+
+The scanner generates at most
+`PABOT_PROCESSES * PABOT_SHARDS_PER_PROCESS` suites, capped by the number of
+objects. Each suite processes its assigned batch sequentially; Pabot runs up to
+`PABOT_PROCESSES` suites at once. See [Configuration](configuration.md) for
+defaults and tuning guidance.
+
+## Result integrity
+
+Workers write each artifact to a temporary file and then move it to its final
+`.json` path. Before reporting, the parent checks that:
+
+- The number of artifacts matches the scheduled object count
+- Every expected data or Tooling object has one artifact
+- Required fields and types are valid
+- Successful counts are non-negative integers
+- Skipped entries have no count
+
+Pabot or artifact validation failures stop workbook creation. Query-level
+operational errors are different: available reports are written first, and the
+final quality check then fails by default.
+
+## Error model
+
+Verified Salesforce limitations are expected skips. These include unsupported
+counts or queries, Big Object aggregate restrictions, required filters, and an
+explicitly allowed disabled Data Cloud response. Other failures are operational.
+
+`REQUEST_LIMIT_EXCEEDED` is retryable. Configured external and unknown errors
+are retried only when their sanitized message indicates a temporary problem.
+Retry delays use exponential backoff. Timeouts and deterministic failures are
+not retried.
 
 ## Main files
 
-| File                                              | Role                                                  |
-|---------------------------------------------------|-------------------------------------------------------|
-| `src/robot/orchestrator/scan.robot`               | Command-line entry point                              |
-| `src/robot/resources/keywords.robot`              | Top-level scan sequence                               |
-| `src/robot/resources/configuration.resource`      | Defaults and command-line value checks                |
-| `src/robot/resources/salesforce.resource`         | Discovery, queries, retries, and error classification |
-| `src/robot/resources/parallel_execution.resource` | Worker-suite generation and artifact checks           |
-| `src/robot/resources/reporting.resource`          | Output directories, JSON files, and workbook call     |
-| `src/robot/libraries/SfUtils.py`                  | CLI parsing, executable lookup, and error redaction   |
-| `src/robot/libraries/ExcelWriter.py`              | Excel workbook generation                             |
+| File                                              | Responsibility |
+|---------------------------------------------------|----------------|
+| `src/robot/orchestrator/scan.robot`               | Command entry point |
+| `src/robot/resources/keywords.robot`              | Parent workflow |
+| `src/robot/resources/configuration.resource`      | Defaults and validation |
+| `src/robot/resources/salesforce.resource`         | CLI calls, queries, timeouts, and error classification |
+| `src/robot/resources/parallel_execution.resource` | Suite generation, workers, and artifact validation |
+| `src/robot/resources/reporting.resource`          | Run directories and final reports |
+| `src/robot/libraries/SfUtils.py`                  | CLI parsing, classification, and redaction |
+| `src/robot/libraries/ExcelWriter.py`              | Workbook generation |
 
-## Worker artifacts
-
-Every run has its own `pabot/artifacts/` directory. Artifact names include the
-API type and object name, so a data object and Tooling object with the same name
-do not overwrite one another.
-
-Workers write to a temporary file first and then move it to the final `.json`
-path. Before reporting, the parent checks that:
-
-- The number of artifacts matches the number of scheduled objects
-- Every expected object has exactly one artifact
-- Required fields are present and have the right types
-- Successful counts are non-negative integers
-
-The workbook is not created when these checks fail, because the worker output is
-incomplete or malformed.
-
-## Errors, skips, and retries
-
-Salesforce has objects that are discoverable but cannot answer an unfiltered
-`COUNT()` query. Known cases are saved as expected skips and do not fail the
-run. Permissions, expired sessions, timeouts, invalid responses, and unknown
-errors are treated as operational problems.
-
-`EXTERNAL_OBJECT_EXCEPTION`, `REQUEST_LIMIT_EXCEEDED`, and `UNKNOWN_EXCEPTION`
-are retried by default. The delay doubles after each failed attempt. Timeouts and
-known unsupported-query cases are not retried.
-
-Reports are written before the final operational-error check, so there is still
-something to inspect when a run fails. Setting
-`FAIL_ON_OPERATIONAL_ERRORS:false` suppresses that final failure. It does not
-make skipped objects complete or safe to ignore.
-
-## Authentication and output
-
-The scanner uses the Salesforce CLI session for the supplied org alias. It does
-not store a username, password, or token. Each scan runs with the permissions of
-that Salesforce user.
-
-The final workbook and JSON files are stored under
-`output/Run_<date-time>_<id>/`. Pabot details stay in that run directory, while
-Robot's top-level log and report go to the directory passed with `-d`.
-
-See [Usage](usage.md) for the output layout and [Security](../SECURITY.md) for
-handling credentials and scan results.
-
----
-
-[Back to README](../README.md) | [Troubleshooting](troubleshooting.md)
+Return to the [README](../README.md) or see
+[Troubleshooting](troubleshooting.md) for operational fixes.
