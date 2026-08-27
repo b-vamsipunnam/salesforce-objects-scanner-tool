@@ -1,5 +1,11 @@
 # Salesforce Objects Scanner
 
+[![Robot Framework](https://img.shields.io/badge/Robot%20Framework-7.4.2-orange?style=flat&logo=robotframework&logoColor=white)](https://robotframework.org/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![Salesforce CLI](https://img.shields.io/badge/Salesforce-CLI-00A1E0?style=flat&logo=salesforce&logoColor=white)](https://developer.salesforce.com/tools/salesforcecli)
+[![CI](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/actions/workflows/robot-ci.yml/badge.svg)](https://github.com/b-vamsipunnam/salesforce-objects-scanner-tool/actions)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat)](LICENSE)
+
 Salesforce Objects Scanner finds the Salesforce objects available to a user,
 counts their records where Salesforce allows it, and saves the results as an
 Excel workbook and JSON files.
