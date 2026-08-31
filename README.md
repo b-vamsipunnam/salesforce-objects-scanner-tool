@@ -20,8 +20,7 @@ not change org data.
 
 You need:
 
-- [Git](https://git-scm.com/downloads), unless you download the repository as a
-  ZIP file
+- [Git](https://git-scm.com/downloads)
 - [Python](https://www.python.org/downloads/) 3.10 or later
 - [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli),
   the `sf` command-line program used to sign in and send requests to Salesforce
@@ -141,8 +140,10 @@ and [Limitations](docs/limitations.md) before using the counts in an assessment.
 
 Salesforce CLI discovers objects and runs the `SELECT COUNT()` queries. Robot
 Framework controls the workflow and reporting, while Pabot, its parallel runner,
-runs isolated object batches. See [Architecture](docs/architecture.md) for
-details.
+runs isolated object batches with test-level splitting. Each generated shard is
+one Robot test, so `PABOT_PROCESSES` controls concurrency and
+`PABOT_SHARDS_PER_PROCESS` controls the number of queued shards per process. See
+[Architecture](docs/architecture.md) for details.
 
 ## Documentation
 

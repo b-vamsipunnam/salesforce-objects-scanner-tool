@@ -3,7 +3,6 @@ Documentation    Salesforce CLI discovery, query, timeout, and error-classificat
 Library          BuiltIn
 Library          Collections
 Library          DateTime
-Library          Process
 Library          String
 Resource         configuration.resource
 Library          ../libraries/SfUtils.py
@@ -18,28 +17,16 @@ Check Prerequisites
     VAR    ${SF_CLI}    ${sf_path}    scope=SUITE
     VAR    ${PYTHON}    ${python_path}    scope=SUITE
     Log To Console    Using SF CLI: ${SF_CLI}
-    ${version_result}=    Run Sf Command Captured    --version
-    ${version_error}=    Get Safe Sf Error Summary
-    ...    ${version_result.stdout}
-    ...    ${version_result.stderr}
-    Should Be Equal As Integers
-    ...    ${version_result.rc}
-    ...    0
-    ...    msg=Salesforce CLI failed to execute.\n${version_error}
-    ${org_result}=    Run Sf Command Captured
-    ...    org
-    ...    display
-    ...    --target-org
-    ...    ${ORG_ALIAS}
-    ...    --json
-    ${org_error}=    Get Safe Sf Error Summary    ${org_result.stdout}    ${org_result.stderr}
-    Should Be Equal As Integers
-    ...    ${org_result.rc}
-    ...    0
-    ...    msg=Org alias is unavailable or unauthenticated: ${ORG_ALIAS}\n${org_error}
-    ${org_json}=    Safe Parse Sf Json    ${org_result.stdout}
-    ${result}=    Get From Dictionary    ${org_json}    result
-    ${api_version}=    Get From Dictionary    ${result}    apiVersion
+    @{version_arguments}=    Create List    --version
+    ${version_result}=    Run Sf Command Safely
+    ...    ${SF_CLI}
+    ...    ${version_arguments}
+    ...    ${SCAN_OUTPUT_ROOT}
+    ...    ${SF_COMMAND_TIMEOUT_SECONDS}
+    ...    ${FALSE}
+    Should Be True    ${version_result}[ok]    Salesforce CLI failed to execute: ${version_result}[details]
+    ${versions}=    Run Sf Api Request Rest Json    /services/data/
+    ${api_version}=    Get Latest Sf Api Version    ${versions}
     VAR    ${API_VERSION}    ${api_version}    scope=SUITE
     Log To Console    Connected to ${ORG_ALIAS} (API v${API_VERSION})
 
@@ -64,67 +51,32 @@ Safe Parse Sf Json
 Run Sf Json
     [Documentation]    Run an sf command and return its parsed JSON response.
     [Arguments]    @{command_parts}
-    ${result}=    Run Sf Command Captured
-    ...    @{command_parts}
-    ...    --target-org
-    ...    ${ORG_ALIAS}
-    ...    --json
-    ${safe_error}=    Get Safe Sf Error Summary    ${result.stdout}    ${result.stderr}
-    Should Be Equal As Integers
-    ...    ${result.rc}
-    ...    0
-    ...    msg=Command failed: sf @{command_parts}\n${safe_error}
-    ${data}=    Safe Parse Sf Json    ${result.stdout}
-    RETURN    ${data}
+    ${arguments}=    Create List    @{command_parts}    --target-org    ${ORG_ALIAS}    --json
+    ${result}=    Run Sf Command Safely
+    ...    ${SF_CLI}
+    ...    ${arguments}
+    ...    ${SCAN_OUTPUT_ROOT}
+    ...    ${SF_COMMAND_TIMEOUT_SECONDS}
+    Should Be True    ${result}[ok]    Command failed: sf @{command_parts}\n${result}[details]
+    RETURN    ${result}[data]
 
 Run Sf Api Request Rest Json
     [Documentation]    Invoke a Salesforce REST resource through sf CLI.
     [Arguments]    ${relative_url}
-    ${result}=    Run Sf Command Captured
+    ${arguments}=    Create List
     ...    api
     ...    request
     ...    rest
     ...    ${relative_url}
     ...    --target-org
     ...    ${ORG_ALIAS}
-    ${safe_error}=    Get Safe Sf Error Summary    ${result.stdout}    ${result.stderr}
-    Should Be Equal As Integers
-    ...    ${result.rc}
-    ...    0
-    ...    msg=Salesforce API call failed:\n${safe_error}
-    ${data}=    Safe Parse Sf Json    ${result.stdout}
-    RETURN    ${data}
-
-Get Safe Sf Error Summary
-    [Documentation]    Return sanitized JSON error evidence safe for logs and console output.
-    [Arguments]    ${stdout}=${EMPTY}    ${stderr}=${EMPTY}
-    ${raw}=    Catenate    SEPARATOR=\n    ${stdout}    ${stderr}
-    ${details}=    Get Sf Error Details    ${raw}
-    ${summary}=    Evaluate    json.dumps($details, ensure_ascii=False)    modules=json
-    RETURN    ${summary}
-
-Run Sf Command Captured
-    [Documentation]    Run sf with file-backed output so large JSON responses cannot fill OS pipes.
-    [Arguments]    @{command_parts}
-    ${capture_id}=    Evaluate    __import__('uuid').uuid4().hex
-    ${stdout_path}=    Normalize Path    ${SCAN_OUTPUT_ROOT}${/}.sf-${capture_id}.stdout
-    ${stderr_path}=    Normalize Path    ${SCAN_OUTPUT_ROOT}${/}.sf-${capture_id}.stderr
-    TRY
-        ${result}=    Run Process
-        ...    ${SF_CLI}
-        ...    @{command_parts}
-        ...    stdout=${stdout_path}
-        ...    stderr=${stderr_path}
-        ...    timeout=${SF_COMMAND_TIMEOUT_SECONDS}
-        ...    on_timeout=kill
-        # Access the properties before cleanup so Robot caches the file contents.
-        ${stdout}=    Set Variable    ${result.stdout}
-        ${stderr}=    Set Variable    ${result.stderr}
-        RETURN    ${result}
-    FINALLY
-        Remove File    ${stdout_path}
-        Remove File    ${stderr_path}
-    END
+    ${result}=    Run Sf Command Safely
+    ...    ${SF_CLI}
+    ...    ${arguments}
+    ...    ${SCAN_OUTPUT_ROOT}
+    ...    ${SF_COMMAND_TIMEOUT_SECONDS}
+    Should Be True    ${result}[ok]    Salesforce API call failed: ${result}[details]
+    RETURN    ${result}[data]
 
 Get Object Names From List
     [Documentation]    Return the object-name list from sf sobject list JSON.
@@ -207,41 +159,25 @@ Get Record Count Safe
     Append To List    ${arguments}    --target-org    ${ORG_ALIAS}    --json
     ${started}=    Get Current Date    result_format=epoch
     ${timeout}=    Get Max Timeout For Object    ${object_name}
-    ${poll_interval}=    Convert To Number    ${POLL_INTERVAL_SECONDS}
     ${retry_limit}=    Convert To Integer    ${SF_TRANSIENT_RETRIES}
     ${max_attempts}=    Evaluate    $retry_limit + 1
     FOR    ${attempt}    IN RANGE    1    ${max_attempts + 1}
-        ${attempt_started}=    Get Current Date    result_format=epoch
-        ${process}=    Start Process    ${SF_CLI}    @{arguments}
-        ${timed_out}=    Set Variable    ${FALSE}
-        WHILE    ${TRUE}
-            ${result}=    Wait For Process
-            ...    ${process}
-            ...    timeout=${poll_interval}
-            ...    on_timeout=continue
-            IF    $result is not None
-                BREAK
-            END
-            ${now}=    Get Current Date    result_format=epoch
-            ${attempt_elapsed}=    Evaluate    $now - $attempt_started
-            IF    ${attempt_elapsed} >= ${timeout}
-                Terminate Process    ${process}    kill=${TRUE}
-                ${timed_out}=    Set Variable    ${TRUE}
-                BREAK
-            END
-        END
+        ${result}=    Run Sf Command Safely
+        ...    ${SF_CLI}
+        ...    ${arguments}
+        ...    ${SCAN_OUTPUT_ROOT}
+        ...    ${timeout}
         ${finished}=    Get Current Date    result_format=epoch
         ${duration}=    Evaluate    round(float($finished) - float($started), 2)
-        IF    ${timed_out}
-            ${details}=    Create Dictionary
-            ...    name=TIMEOUT
-            ...    message=Query exceeded ${timeout} seconds on attempt ${attempt}.
+        IF    ${result}[timed_out]
+            ${details}=    Set Variable    ${result}[details]
+            Set To Dictionary    ${details}    attempts=${attempt}
             RETURN    ${None}    TIMEOUT    ${duration}    ${details}
         END
-        IF    ${result.rc} != 0
-            ${error_text}=    Catenate    SEPARATOR=\n    ${result.stdout}    ${result.stderr}
-            ${reason}=    Get Skip Reason    ${error_text}    ${object_name}    ${tooling}
-            ${details}=    Get Sf Error Details    ${error_text}
+        IF    not ${result}[ok]
+            ${details}=    Set Variable    ${result}[details]
+            ${safe_error}=    Evaluate    json.dumps($details, ensure_ascii=False)    modules=json
+            ${reason}=    Get Skip Reason    ${safe_error}    ${object_name}    ${tooling}
             Set To Dictionary    ${details}    attempts=${attempt}
             ${retry}=    Should Retry Sf Failure
             ...    ${reason}
@@ -258,13 +194,7 @@ Get Record Count Safe
             END
             RETURN    ${None}    ${reason}    ${duration}    ${details}
         END
-        ${parse_status}    ${data}=    Run Keyword And Ignore Error
-        ...    Safe Parse Sf Json
-        ...    ${result.stdout}
-        IF    '${parse_status}' != 'PASS'
-            ${details}=    Get Sf Error Details    ${result.stdout}
-            RETURN    ${None}    INVALID_JSON_OUTPUT    ${duration}    ${details}
-        END
+        ${data}=    Set Variable    ${result}[data]
         ${is_dictionary}=    Evaluate    isinstance($data, dict)
         IF    not ${is_dictionary}
             ${details}=    Create Dictionary

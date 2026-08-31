@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import signal
 import shutil
+import subprocess
 import sys
+import tempfile
+import time
+from pathlib import Path
 from typing import Any
 
 
@@ -148,36 +154,216 @@ def parse_sf_json(raw: str) -> Any:
         if character not in "[{":
             continue
         try:
-            value, _ = decoder.raw_decode(text[index:])
+            value, end_offset = decoder.raw_decode(text[index:])
         except json.JSONDecodeError:
             continue
-        candidates.append(value)
+        candidates.append((value, index, index + end_offset))
     if candidates:
-        return max(enumerate(candidates), key=_candidate_priority)[1]
+        return max(candidates, key=_candidate_priority)[0]
     raise ValueError("No valid JSON value found in sf output.")
 
 
-def _candidate_priority(indexed_value: tuple[int, Any]) -> tuple[int, int]:
-    """Prefer complete Salesforce payloads and, for ties, later values."""
-    index, value = indexed_value
+def _candidate_priority(candidate: tuple[Any, int, int]) -> tuple[int, int, int]:
+    """Prefer recognized payloads, then the largest complete JSON document."""
+    value, start, end = candidate
     if isinstance(value, dict):
         if "status" in value and "result" in value:
             score = 100
+        elif "sobjects" in value and isinstance(value["sobjects"], list):
+            score = 95
         elif "name" in value and "message" in value:
-            score = 80
+            score = 90
         elif "status" in value:
-            score = 70
+            score = 80
         elif "result" in value:
-            score = 60
+            score = 75
         elif "name" in value:
-            score = 30
+            score = 70
         else:
-            score = 10
+            score = 60
     elif isinstance(value, list):
         score = 50
     else:
         score = 0
-    return score, index
+    return score, end - start, -start
+
+
+def run_sf_command_safely(
+    executable: str,
+    command_parts: list[Any],
+    output_directory: str,
+    timeout_seconds: float,
+    expect_json: bool = True,
+) -> dict[str, Any]:
+    """Run sf with file-backed streams and return no unsanitized process output."""
+    directory = Path(output_directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    stdout_fd, stdout_name = tempfile.mkstemp(prefix=".sf-", suffix=".stdout", dir=directory)
+    stderr_fd, stderr_name = tempfile.mkstemp(prefix=".sf-", suffix=".stderr", dir=directory)
+    stdout_path = Path(stdout_name)
+    stderr_path = Path(stderr_name)
+    timed_out = False
+    return_code: int | None = None
+    try:
+        with os.fdopen(stdout_fd, "wb") as stdout_file, os.fdopen(
+            stderr_fd, "wb"
+        ) as stderr_file:
+            try:
+                process = subprocess.Popen(
+                    [str(executable), *(str(part) for part in command_parts)],
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+                    ),
+                    start_new_session=os.name != "nt",
+                )
+                try:
+                    return_code = process.wait(timeout=float(timeout_seconds))
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    _kill_process_tree(process)
+                    process.wait()
+            except OSError as exc:
+                return {
+                    "ok": False,
+                    "rc": None,
+                    "timed_out": False,
+                    "data": None,
+                    "details": {
+                        "name": "CLI_EXECUTION_FAILED",
+                        "message": sanitize_sf_text(str(exc)),
+                    },
+                }
+
+        stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
+        stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
+        if timed_out:
+            return {
+                "ok": False,
+                "rc": return_code,
+                "timed_out": True,
+                "data": None,
+                "details": {
+                    "name": "TIMEOUT",
+                    "message": f"Salesforce CLI exceeded {timeout_seconds} seconds.",
+                },
+            }
+        if return_code != 0:
+            return {
+                "ok": False,
+                "rc": return_code,
+                "timed_out": False,
+                "data": None,
+                "details": get_sf_error_details(f"{stdout}\n{stderr}"),
+            }
+        if not expect_json:
+            return {
+                "ok": True,
+                "rc": return_code,
+                "timed_out": False,
+                "data": None,
+                "details": {
+                    "name": "OK",
+                    "message": sanitize_sf_text(f"{stdout}\n{stderr}".strip()),
+                },
+            }
+        try:
+            data = sanitize_sf_payload(parse_sf_json(stdout))
+        except ValueError:
+            return {
+                "ok": False,
+                "rc": return_code,
+                "timed_out": False,
+                "data": None,
+                "details": {
+                    "name": "INVALID_JSON_OUTPUT",
+                    "message": get_sf_error_details(f"{stdout}\n{stderr}")["message"],
+                },
+            }
+        return {
+            "ok": True,
+            "rc": return_code,
+            "timed_out": False,
+            "data": data,
+            "details": {"name": "OK", "message": ""},
+        }
+    finally:
+        _unlink_capture_file(stdout_path)
+        _unlink_capture_file(stderr_path)
+
+
+def _kill_process_tree(process: subprocess.Popen[Any]) -> None:
+    """Terminate the CLI wrapper and descendants that inherited capture files."""
+    if os.name == "nt":
+        try:
+            os.kill(process.pid, signal.CTRL_BREAK_EVENT)
+            process.wait(timeout=2)
+            return
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    if process.poll() is None:
+        process.kill()
+
+
+def _unlink_capture_file(path: Path) -> None:
+    """Remove a capture file after inherited process handles have closed."""
+    for attempt in range(5):
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.05)
+
+
+def get_latest_sf_api_version(versions: Any) -> str:
+    """Return the highest API version from the safe /services/data/ response."""
+    if not isinstance(versions, list):
+        raise AssertionError("Salesforce /services/data/ response was not a list.")
+    values = [
+        str(item.get("version"))
+        for item in versions
+        if isinstance(item, dict) and item.get("version")
+    ]
+    if not values:
+        raise AssertionError("Salesforce /services/data/ response contained no API versions.")
+    return max(values, key=lambda value: tuple(int(part) for part in value.split(".")))
+
+
+def sanitize_sf_payload(value: Any, key: str = "") -> Any:
+    """Recursively redact credentials before parsed CLI data reaches Robot."""
+    normalized_key = re.sub(r"[^a-z]", "", key.lower())
+    if normalized_key in {
+        "accesstoken",
+        "authtoken",
+        "refreshtoken",
+        "sessionid",
+        "sfdxauthurl",
+    }:
+        return "[REDACTED_CREDENTIAL]"
+    if isinstance(value, dict):
+        return {
+            item_key: sanitize_sf_payload(item_value, str(item_key))
+            for item_key, item_value in value.items()
+        }
+    if isinstance(value, list):
+        return [sanitize_sf_payload(item) for item in value]
+    if isinstance(value, str):
+        return sanitize_sf_text(value)
+    return value
 
 
 def current_python_executable() -> str:
