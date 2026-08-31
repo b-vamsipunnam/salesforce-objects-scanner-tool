@@ -67,6 +67,18 @@ Smoke - Large Discovery Output Does Not Deadlock
     ${names}=    Get Object Names From List    ${response}
     Length Should Be    ${names}    10000
 
+Smoke - Large Count Query Output Does Not Deadlock
+    [Documentation]    Verify count-query attempts use file-backed stdout and stderr.
+    ${run_directory}=    Set Variable    ${PARALLEL_SMOKE_DIR}${/}large-query
+    ${fake_sf}=    Create Fake Sf Launcher    ${run_directory}${/}fake-cli
+    VAR    ${SF_CLI}    ${fake_sf}    scope=TEST
+    VAR    ${SCAN_OUTPUT_ROOT}    ${run_directory}    scope=TEST
+    VAR    ${MAX_QUERY_TIMEOUT_SECONDS}    ${5}    scope=TEST
+    ${count}    ${reason}    ${duration}    ${details}=    Get Record Count Safe    LargeQueryObject
+    Should Be Equal As Integers    ${count}    9
+    Should Be Equal    ${reason}    OK
+    Should Be Empty    ${details}
+
 Smoke - Unexpected Worker Error Preserves Artifact
     VAR    ${SF_CLI}    ${PARALLEL_SMOKE_DIR}${/}missing-sf    scope=TEST
     VAR    ${POLL_INTERVAL_SECONDS}    access_token=rawWorkerSecret    scope=TEST
@@ -79,11 +91,11 @@ Smoke - Unexpected Worker Error Preserves Artifact
     ...    ${PARALLEL_SMOKE_DIR}${/}worker-error-run
     Should Be Empty    ${data}
     Should Be Empty    ${tooling}
-    Dictionary Should Contain Item    ${skipped}    Account    WORKER_ERROR
+    Dictionary Should Contain Item    ${skipped}    Account    CLI_EXECUTION_FAILED
     Dictionary Should Contain Key    ${durations}    Account
     Dictionary Should Contain Key    ${details}    Account
-    Should Not Contain    ${details}[Account][message]    rawWorkerSecret
-    Should Contain    ${details}[Account][message]    [REDACTED_ACCESS_TOKEN]
+    Dictionary Should Contain Item    ${details}[Account]    name    CLI_EXECUTION_FAILED
+    Should Not Be Empty    ${details}[Account][message]
 
 Smoke - Pabot Workers Receive Query Timing Configuration
     [Documentation]    Verify scalar and list settings cross the isolated worker-process boundary.

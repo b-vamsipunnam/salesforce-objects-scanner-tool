@@ -1,5 +1,8 @@
 import json
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from src.robot.libraries.SfUtils import (
@@ -9,6 +12,7 @@ from src.robot.libraries.SfUtils import (
     is_verified_deterministic_sf_failure,
     parse_sf_json,
     resolve_executable,
+    run_sf_command_safely,
     sanitize_sf_text,
 )
 
@@ -20,6 +24,38 @@ class SfUtilsTests(unittest.TestCase):
 
     def test_parses_top_level_array(self):
         self.assertEqual(parse_sf_json("warning\n[1, 2]\ntrailing"), [1, 2])
+
+    def test_prefers_complete_noisy_tooling_response_over_nested_list(self):
+        raw = 'warning\n{"sobjects":[{"name":"Account","queryable":true}]}'
+        self.assertEqual(parse_sf_json(raw)["sobjects"][0]["name"], "Account")
+
+    def test_safe_runner_redacts_credentials_before_returning_data(self):
+        secret = "fakeIntegrationAccessToken123"
+        script = (
+            "import json; print(json.dumps({"
+            f"'accessToken':'{secret}', 'message':'Bearer {secret}', 'result':[]"
+            "}))"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_sf_command_safely(
+                sys.executable, ["-c", script], directory, 5
+            )
+            self.assertTrue(result["ok"])
+            self.assertNotIn(secret, json.dumps(result))
+            self.assertEqual(result["data"]["accessToken"], "[REDACTED_CREDENTIAL]")
+            self.assertEqual(list(Path(directory).glob(".sf-*")), [])
+
+    def test_safe_runner_handles_large_file_backed_output(self):
+        script = (
+            "import json; print('warning ' + 'x' * 2_000_000); "
+            "print(json.dumps({'status':0,'result':{'totalSize':7}}))"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_sf_command_safely(
+                sys.executable, ["-c", script], directory, 10
+            )
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["data"]["result"]["totalSize"], 7)
 
     def test_prefers_salesforce_payload_over_json_in_warning(self):
         raw = '{"warning": "plugin notice"}\n{"status": 0, "result": ["Account"]}'

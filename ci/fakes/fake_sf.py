@@ -7,6 +7,7 @@ import time
 
 
 COUNTS = {"Account": 42, "Contact": 7, "ApexClass": 3}
+FAKE_ACCESS_TOKEN = "fakeSalesforceAccessToken_DO_NOT_LOG_12345"
 
 
 def main() -> int:
@@ -54,6 +55,30 @@ def main() -> int:
             )
         )
         return 1
+    if match and match.group(1) == "TokenFailure":
+        print(
+            json.dumps(
+                {
+                    "name": "INVALID_SESSION_ID",
+                    "message": (
+                        f"access_token={FAKE_ACCESS_TOKEN} "
+                        f"Authorization: Bearer {FAKE_ACCESS_TOKEN}"
+                    ),
+                }
+            )
+        )
+        return 1
+    if match and match.group(1) == "LargeQueryObject":
+        print("warning " + ("x" * 2_000_000))
+        print(
+            json.dumps(
+                {
+                    "status": 0,
+                    "result": {"records": [], "totalSize": 9, "done": True},
+                }
+            )
+        )
+        return 0
     if not match or match.group(1) not in COUNTS:
         print(json.dumps({"name": "INVALID_TYPE", "message": query}))
         return 1

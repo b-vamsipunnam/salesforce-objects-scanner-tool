@@ -75,17 +75,25 @@ Smoke - Missing Alias Has Actionable Validation
     Should Be Equal    ${status}    FAIL
     Should Contain    ${message}    ORG_ALIAS is required
 
-Smoke - Process Output Is Never Shared Through PIPE
+Smoke - Salesforce Process Output Is Python Owned And File Backed
     ${salesforce_resource}=    Get File    ${CURDIR}${/}..${/}..${/}src${/}robot${/}resources${/}salesforce.resource
     ${parallel_resource}=    Get File
     ...    ${CURDIR}${/}..${/}..${/}src${/}robot${/}resources${/}parallel_execution.resource
     ${reporting_resource}=    Get File    ${CURDIR}${/}..${/}..${/}src${/}robot${/}resources${/}reporting.resource
     Should Not Contain    ${salesforce_resource}    stdout=PIPE
     Should Not Contain    ${salesforce_resource}    stderr=PIPE
+    Should Not Contain    ${salesforce_resource}    Start Process
+    Should Not Contain    ${salesforce_resource}    Run Process
     Should Not Contain    ${parallel_resource}    stdout=PIPE
     Should Not Contain    ${parallel_resource}    stderr=PIPE
     Should Not Contain    ${reporting_resource}    stdout=PIPE
     Should Not Contain    ${reporting_resource}    stderr=PIPE
+
+Smoke - Pabot Uses Test Level Splitting
+    ${parallel_resource}=    Get File
+    ...    ${CURDIR}${/}..${/}..${/}src${/}robot${/}resources${/}parallel_execution.resource
+    Should Contain    ${parallel_resource}    pabot.pabot
+    Should Contain    ${parallel_resource}    --testlevelsplit
 
 Smoke - Operational Failure Fails Quality Gate
     &{skipped}=    Create Dictionary    Account=INVALID_JSON_OUTPUT

@@ -33,6 +33,7 @@ Run Object Queries With Pabot
     ...    ${PYTHON}
     ...    -m
     ...    pabot.pabot
+    ...    --testlevelsplit
     ...    --processes
     ...    ${PABOT_PROCESSES}
     ...    --outputdir
