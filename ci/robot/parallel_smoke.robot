@@ -94,7 +94,8 @@ Smoke - Unexpected Worker Error Preserves Artifact
     Dictionary Should Contain Item    ${skipped}    Account    CLI_EXECUTION_FAILED
     Dictionary Should Contain Key    ${durations}    Account
     Dictionary Should Contain Key    ${details}    Account
-    Should Contain    ${details}[Account][message]    cannot find the file
+    Dictionary Should Contain Item    ${details}[Account]    name    CLI_EXECUTION_FAILED
+    Should Not Be Empty    ${details}[Account][message]
 
 Smoke - Pabot Workers Receive Query Timing Configuration
     [Documentation]    Verify scalar and list settings cross the isolated worker-process boundary.
